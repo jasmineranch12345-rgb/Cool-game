@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-<title>Arena Shooter V10.3 (Final)</title>
+<title>Arena Shooter V10.3a (Final)</title>
 <style>
   :root{--bg:#0c0c0f;--panel:#111;--accent:#fff;}
   html,body{height:100%;margin:0;background:var(--bg);-webkit-user-select:none;user-select:none;touch-action:none;}
@@ -22,13 +22,10 @@
   .legend{display:flex;flex-wrap:wrap;justify-content:center;margin-top:12px;gap:8px}
   .legend-item{background:#1a1a1a;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:8px}
   .legend-emoji{font-size:18px}
-  /* Joystick overlay helper (visual only) */
   .js-visual{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:30}
   .js-circle{position:absolute;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);width:100px;height:100px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center}
   .js-knob{width:46px;height:46px;border-radius:999px;background:rgba(255,255,255,0.12)}
-  @media (orientation:portrait) {
-    #minimap{width:120px;height:90px}
-  }
+  @media (orientation:portrait) { #minimap{width:120px;height:90px} }
 </style>
 </head>
 <body>
@@ -43,7 +40,7 @@
 
 <div id="menu">
   <div class="menu-panel">
-    <h1>Arena Shooter — V10.3</h1>
+    <h1>Arena Shooter — V10.3a</h1>
     <div style="margin:10px 0">Left joystick = move · Right joystick = aim & shoot</div>
     <div style="margin:14px 0">
       <button class="big-btn" onclick="startGame('survival')">Start Survival</button>
@@ -76,22 +73,14 @@
   </div>
 </div>
 
-<!-- Visual joystick indicators (optional, not required for gameplay) -->
 <div class="js-visual" id="jsVisual"></div>
 
 <script>
-/* ======= Arena Shooter V10.3 — Single file =======
-   Features:
-   - Single-file HTML for Safari on iPad
-   - Left joystick (move) & right joystick (aim & shoot)
-   - Arrow points in shooting direction
-   - Enemies: fast (circle) and slow (triangle/large) with health
-   - Obstacles: rect/circle/triangle — no phasing; sliding on collision
-   - Power-ups with emoji icons and legend
-   - Mini-map top-right (player, enemies, power-ups)
-   - Damage per hit with cooldowns
-   - Spawn waves, time attack mode, HUD
-   - Optimized loops & simple collision approximations for performance
+/* ======= Arena Shooter V10.3a — Single file =======
+   Fixes:
+   - Removed duplicate 'lastFrame' declaration (crash).
+   - Aim arrow uses local coordinates after rotation (correct direction).
+   - Small stability/polish tweaks; feature-set unchanged.
 */
 
 /* ---------- setup ---------- */
@@ -105,7 +94,6 @@ function resize() {
   canvas.height = window.innerHeight;
   minimapCanvas.width = Math.min(180, Math.floor(window.innerWidth * 0.18));
   minimapCanvas.height = Math.min(130, Math.floor(window.innerHeight * 0.12));
-  // reposition joysticks visuals
   leftStick.x = 110; leftStick.y = canvas.height - 110;
   rightStick.x = canvas.width - 110; rightStick.y = canvas.height - 110;
 }
@@ -127,7 +115,7 @@ const player = {
   color: '#4da6ff',
   speed: 3.2,
   health: 100,
-  flash: 0 // frames to flash on hit
+  flash: 0
 };
 
 /* bullets, enemies, obstacles, powerups */
@@ -167,7 +155,6 @@ const jsVisual = document.getElementById('jsVisual');
 })();
 
 /* ---------- helpers (collision) ---------- */
-/* circle vs rect collision */
 function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
   const closestX = Math.max(rx, Math.min(cx, rx+rw));
   const closestY = Math.max(ry, Math.min(cy, ry+rh));
@@ -175,29 +162,20 @@ function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
   const dy = cy - closestY;
   return dx*dx + dy*dy < cr*cr;
 }
-/* circle vs circle */
 function circleCircleCollision(aX,aY,aR, bX,bY,bR){
   const d = Math.hypot(aX-bX, aY-bY);
   return d < (aR + bR);
 }
-/* circle vs triangle approximate via bounding box (fast) */
 function circleTriangleCollision(cx,cy,cr, tx,ty,tr){
-  // approximate triangle as bounding square of size 2*tr
   return Math.abs(cx - tx) < (tr + cr) && Math.abs(cy - ty) < (tr + cr);
 }
-
-/* clamp position inside arena */
 function clampToArena(ent){
-  ent.x = Math.max(ent.r || 0, Math.min(arena.width - (ent.r || 0), ent.x));
-  ent.y = Math.max(ent.r || 0, Math.min(arena.height - (ent.r || 0), ent.y));
+  const rr = ent.r || 0;
+  ent.x = Math.max(rr, Math.min(arena.width - rr, ent.x));
+  ent.y = Math.max(rr, Math.min(arena.height - rr, ent.y));
 }
-
-/* slide entity along obstacles (player and enemies) - simple approach:
-   attempt X move then Y move; if blocked on axis, cancel movement on that axis.
-*/
 function attemptMove(entity, nextX, nextY){
   let canX = true, canY = true;
-  // check each obstacle:
   for (const ob of obstacles){
     if (ob.shape === 'rect'){
       if (circleRectCollision(nextX, entity.y, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canX = false;
@@ -205,7 +183,7 @@ function attemptMove(entity, nextX, nextY){
     } else if (ob.shape === 'circle'){
       if (circleCircleCollision(nextX, entity.y, entity.r, ob.x, ob.y, ob.r)) canX = false;
       if (circleCircleCollision(entity.x, nextY, entity.r, ob.x, ob.y, ob.r)) canY = false;
-    } else { // triangle approximation bounding box
+    } else {
       if (circleTriangleCollision(nextX, entity.y, entity.r, ob.x, ob.y, ob.r)) canX = false;
       if (circleTriangleCollision(entity.x, nextY, entity.r, ob.x, ob.y, ob.r)) canY = false;
     }
@@ -218,7 +196,6 @@ function attemptMove(entity, nextX, nextY){
 
 /* ---------- spawns ---------- */
 function spawnEnemy(nearPlayerBias = 1.0){
-  // spawn somewhat near player but outside immediate collision: choose a side and offset
   const side = Math.floor(Math.random()*4);
   let x,y;
   const margin = 120 + Math.random()*220*nearPlayerBias;
@@ -232,29 +209,24 @@ function spawnEnemy(nearPlayerBias = 1.0){
   const health = t === 'fast' ? 1 : 6 + Math.floor(Math.random()*4);
   enemies.push({ x,y, type:t, r: t==='fast'?10:30, color: t==='fast'?'#ff6b6b':'#9e2a2b', health, maxHealth:health, lastHit:0, damage: t==='fast'?4:12 });
 }
-
 function spawnPowerUp(){
   const type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
   powerUps.push({ x: Math.random()*(arena.width-80)+40, y: Math.random()*(arena.height-80)+40, r:16, type, duration: 800 });
 }
-
 /* spawn waves */
 let waveTimerId = null;
 function startWaves(){
-  // initial small spawn and then repeating waves
   spawnEnemy();
   for (let i=0;i<3;i++) spawnEnemy(0.8);
   if (waveTimerId) clearInterval(waveTimerId);
   waveTimerId = setInterval(()=>{ if (gameState==='playing') { for(let i=0;i<4;i++) spawnEnemy(1.2); } }, 4500);
 }
 
-/* ---------- input (touch) ---------- */
+/* ---------- input (touch & mouse) ---------- */
 canvas.addEventListener('touchstart', (ev)=>{
   for(const t of ev.changedTouches){
     const tx = t.clientX, ty = t.clientY;
-    // left stick area
     if (Math.hypot(tx - leftStick.x, ty - leftStick.y) <= leftStick.r) leftStick.id = t.identifier;
-    // right stick area
     if (Math.hypot(tx - rightStick.x, ty - rightStick.y) <= rightStick.r) { rightStick.id = t.identifier; rightStick.active = true; }
   }
 });
@@ -281,7 +253,7 @@ canvas.addEventListener('touchend', (ev)=>{
   }
 });
 
-/* Also allow mouse for quick testing on desktop */
+/* Mouse (desktop testing) */
 let mouseDownLeft=false, mouseDownRight=false;
 canvas.addEventListener('mousedown', (e)=>{
   const x=e.clientX, y=e.clientY;
@@ -289,24 +261,39 @@ canvas.addEventListener('mousedown', (e)=>{
   else { mouseDownRight = true; rightStick.active = true; rightStick.dx = x - rightStick.x; rightStick.dy = y - rightStick.y; }
 });
 canvas.addEventListener('mousemove', (e)=>{
-  if (mouseDownLeft){ leftStick.dx = e.clientX - leftStick.x; leftStick.dy = e.clientY - leftStick.y; let d=Math.hypot(leftStick.dx,leftStick.dy); if(d>leftStick.r){leftStick.dx=leftStick.dx/d*leftStick.r;leftStick.dy=leftStick.dy/d*leftStick.r;} }
-  if (mouseDownRight){ rightStick.dx = e.clientX - rightStick.x; rightStick.dy = e.clientY - rightStick.y; let d=Math.hypot(rightStick.dx,rightStick.dy); if(d>rightStick.r){rightStick.dx=rightStick.dx/d*rightStick.r;rightStick.dy=rightStick.dy/d*rightStick.r;} }
+  if (mouseDownLeft){
+    leftStick.dx = e.clientX - leftStick.x; leftStick.dy = e.clientY - leftStick.y;
+    let d=Math.hypot(leftStick.dx,leftStick.dy);
+    if(d>leftStick.r){leftStick.dx=leftStick.dx/d*leftStick.r;leftStick.dy=leftStick.dy/d*leftStick.r;}
+  }
+  if (mouseDownRight){
+    rightStick.dx = e.clientX - rightStick.x; rightStick.dy = e.clientY - rightStick.y;
+    let d=Math.hypot(rightStick.dx,rightStick.dy);
+    if(d>rightStick.r){rightStick.dx=rightStick.dx/d*rightStick.r;rightStick.dy=rightStick.dy/d*rightStick.r;}
+  }
 });
-window.addEventListener('mouseup', ()=>{ mouseDownLeft=false; mouseDownRight=false; leftStick.dx=0; leftStick.dy=0; rightStick.dx=0; rightStick.dy=0; rightStick.active=false; });
+window.addEventListener('mouseup', ()=>{
+  mouseDownLeft=false; mouseDownRight=false;
+  leftStick.dx=0; leftStick.dy=0;
+  rightStick.dx=0; rightStick.dy=0; rightStick.active=false;
+});
 
 /* ---------- core update ---------- */
-let lastFrame = performance.now();
+let lastFrame = performance.now();  // <-- single declaration
 function update(dt){
   if (gameState !== 'playing') return;
+
   // movement
   const ldx = leftStick.dx, ldy = leftStick.dy;
   const lmag = Math.hypot(ldx,ldy);
   if (lmag > 8){
-    const nx = player.x + (ldx / lmag) * player.speed * (speedBoost>0?1.45:1.0);
-    const ny = player.y + (ldy / lmag) * player.speed * (speedBoost>0?1.45:1.0);
+    const s = player.speed * (speedBoost>0?1.45:1.0);
+    const nx = player.x + (ldx / lmag) * s;
+    const ny = player.y + (ldy / lmag) * s;
     attemptMove(player, nx, ny);
   }
-  // shooting via right stick
+
+  // shooting
   if (rightStick.active){
     const rdx = rightStick.dx, rdy = rightStick.dy;
     const rmag = Math.hypot(rdx,rdy);
@@ -315,9 +302,7 @@ function update(dt){
       const now = Date.now();
       const fireRate = (rapidFire>0) ? 100 : 300;
       if (!rightStick.lastShot || now - rightStick.lastShot > fireRate){
-        // build bullets: normal, spread, explosive variants
         if (spread){
-          // spread shot: three bullets
           for (let aOff of [-0.18,0,0.18]){
             const ax = Math.cos(angle + aOff) * 9;
             const ay = Math.sin(angle + aOff) * 9;
@@ -331,7 +316,7 @@ function update(dt){
     }
   }
 
-  // update bullets
+  // bullets
   for (let i = bullets.length-1; i>=0; i--){
     const b = bullets[i];
     b.x += b.dx;
@@ -345,10 +330,8 @@ function update(dt){
       const e = enemies[j];
       const d = Math.hypot(e.x - b.x, e.y - b.y);
       if (d < e.r + b.r){
-        // hit
         e.health -= 1;
         if (b.explosive){
-          // apply small AOE
           for (let k=enemies.length-1;k>=0;k--){
             const e2 = enemies[k];
             const d2 = Math.hypot(e2.x - b.x, e2.y - b.y);
@@ -365,7 +348,7 @@ function update(dt){
     }
   }
 
-  // enemies movement & attacks
+  // enemies update
   const now = Date.now();
   for (const e of enemies){
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
@@ -373,7 +356,6 @@ function update(dt){
     const nx = e.x + Math.cos(ang) * spd;
     const ny = e.y + Math.sin(ang) * spd;
     attemptMove(e, nx, ny);
-    // attack if close
     const dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (dist < player.r + e.r + 2){
       if (!e.lastHit || now - e.lastHit > 600){
@@ -388,7 +370,7 @@ function update(dt){
     }
   }
 
-  // power-ups pickup handled similarly
+  // power-ups
   for (let i=powerUps.length-1;i>=0;i--){
     const p = powerUps[i];
     if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r){
@@ -397,11 +379,10 @@ function update(dt){
     }
   }
 
-  // spawn timers & buffs decay
+  // buffs decay & timer
   if (rapidFire>0) rapidFire--;
   if (doublePoints>0) doublePoints--;
   if (speedBoost>0) speedBoost--;
-  // simple score/time updates
   if (gameMode === 'time') {
     timer -= dt / 1000;
     if (timer <= 0) endGame();
@@ -422,26 +403,16 @@ function applyPowerUp(type){
 }
 
 /* ---------- drawing ---------- */
-function worldToScreen(wx, wy){
-  // center camera on player, but clamp to arena bounds
-  const camX = Math.min(Math.max(player.x - canvas.width/2, 0), arena.width - canvas.width);
-  const camY = Math.min(Math.max(player.y - canvas.height/2, 0), arena.height - canvas.height);
-  return { sx: wx - camX, sy: wy - camY };
-}
-
 function drawScene(){
-  // clear
   ctx.fillStyle = '#0c0c0f';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // camera offsets
   const camX = Math.min(Math.max(player.x - canvas.width/2, 0), arena.width - canvas.width);
   const camY = Math.min(Math.max(player.y - canvas.height/2, 0), arena.height - canvas.height);
 
-  // draw arena background (subtle grid)
   ctx.save();
   ctx.translate(-camX, -camY);
-  ctx.fillStyle = '#0d0d0f';
+
   // obstacles
   for (const ob of obstacles){
     ctx.fillStyle = '#444';
@@ -458,7 +429,6 @@ function drawScene(){
   for (const b of bullets){
     ctx.fillStyle = b.color;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-    // small trail
     ctx.fillStyle = 'rgba(255,215,0,0.2)';
     ctx.beginPath(); ctx.arc(b.x - b.dx*2, b.y - b.dy*2, b.r*0.9, 0, Math.PI*2); ctx.fill();
   }
@@ -469,9 +439,7 @@ function drawScene(){
     if (e.type === 'fast'){
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
     } else {
-      // triangle (slow)
       ctx.beginPath(); ctx.moveTo(e.x, e.y - e.r); ctx.lineTo(e.x - e.r, e.y + e.r); ctx.lineTo(e.x + e.r, e.y + e.r); ctx.closePath(); ctx.fill();
-      // health bar when damaged
       if (e.health < e.maxHealth){
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(e.x - e.r, e.y - e.r - 12, e.r*2, 6);
@@ -481,7 +449,7 @@ function drawScene(){
     }
   }
 
-  // powerups as emoji
+  // powerups (emoji)
   ctx.font = '22px serif';
   for (const p of powerUps){
     let emoji = '⚡';
@@ -493,9 +461,10 @@ function drawScene(){
 
   // player
   ctx.fillStyle = player.flash>0 ? '#ffffff' : player.color;
+  if (player.flash>0) player.flash--;
   ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
 
-  // shooting arrow (world-space, drawn near player)
+  // shooting arrow — now uses local coords after rotate (corrected)
   if (rightStick.active){
     const rx = rightStick.dx, ry = rightStick.dy;
     const mag = Math.hypot(rx,ry);
@@ -504,22 +473,18 @@ function drawScene(){
       ctx.save();
       ctx.translate(player.x, player.y);
       ctx.rotate(angle);
-      // arrow line + triangle at end
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0 + Math.cos(angle)*40, 0 + Math.sin(angle)*40); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(40,0); ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.moveTo(0 + Math.cos(angle)*46, 0 + Math.sin(angle)*46);
-      ctx.lineTo( -6 + Math.cos(angle)*34, -6 + Math.sin(angle)*34 );
-      ctx.lineTo( 6 + Math.cos(angle)*34, 6 + Math.sin(angle)*34 );
-      ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(46,0); ctx.lineTo(34,-6); ctx.lineTo(34,6); ctx.closePath(); ctx.fill();
       ctx.restore();
     }
   }
 
   ctx.restore();
 
-  // HUD elements (health handled by DOM)
+  // HUD
   document.getElementById('health-fill').style.width = Math.max(0, player.health) + '%';
   document.getElementById('score').innerText = 'Score: ' + score;
   document.getElementById('timer').innerText = gameMode === 'time' ? ('Time: ' + Math.max(0, Math.ceil(timer))) : '';
@@ -532,17 +497,15 @@ function drawMinimap(){
   mm.fillRect(0,0,minimapCanvas.width,minimapCanvas.height);
   const sx = minimapCanvas.width / arena.width;
   const sy = minimapCanvas.height / arena.height;
-  // obstacles (small grey dots)
+
   mm.fillStyle = '#444';
   for (const ob of obstacles){
     mm.fillRect(Math.floor(ob.x * sx) - 1, Math.floor(ob.y * sy) - 1, 3, 3);
   }
-  // powerups
   for (const p of powerUps){
     mm.fillStyle = '#ffd54f';
     mm.fillRect(Math.floor(p.x * sx)-1, Math.floor(p.y * sy)-1, 3, 3);
   }
-  // enemies
   for (const e of enemies){
     mm.fillStyle = e.type === 'fast' ? '#ff6b6b' : '#8b1f2b';
     const ex = Math.floor(e.x * sx), ey = Math.floor(e.y * sy);
@@ -552,7 +515,6 @@ function drawMinimap(){
       mm.beginPath(); mm.moveTo(ex, ey-3); mm.lineTo(ex-3, ey+3); mm.lineTo(ex+3, ey+3); mm.closePath(); mm.fill();
     }
   }
-  // player
   mm.fillStyle = '#4da6ff';
   mm.fillRect(Math.floor(player.x * sx)-2, Math.floor(player.y * sy)-2, 4, 4);
 }
@@ -562,16 +524,15 @@ let running = true;
 function mainLoop(ts){
   const dt = Math.min(40, ts - lastFrame);
   lastFrame = ts;
-  update(dt);
   if (gameState === 'playing') {
+    update(dt);
     drawScene();
     drawMinimap();
   }
   if (running) requestAnimationFrame(mainLoop);
 }
-let lastFrame = performance.now();
 
-/* ---------- game control functions ---------- */
+/* ---------- game control ---------- */
 function startGame(mode){
   gameMode = mode || 'survival';
   timer = (gameMode==='time') ? 60 : 9999;
@@ -583,14 +544,12 @@ function startGame(mode){
   document.getElementById('gameover').style.display = 'none';
   gameState = 'playing';
   startWaves();
-  // initial powerups
   for (let i=0;i<3;i++) spawnPowerUp();
 }
 function endGame(){
   gameState = 'gameover';
   document.getElementById('finalScore').innerText = 'Score: ' + score;
   document.getElementById('gameover').style.display = 'flex';
-  // stop waves
   if (waveTimerId) { clearInterval(waveTimerId); waveTimerId = null; }
 }
 function backToMenu(){
@@ -607,7 +566,7 @@ function restartGame(){
 resize();
 requestAnimationFrame(mainLoop);
 
-/* ensure we show joystick visuals for clarity (small circles) */
+/* joystick visuals (optional) */
 function updateJSVisual(){
   jsVisual.innerHTML = '';
   const createCircle = (cx, cy, r, knobX, knobY) => {
@@ -617,8 +576,6 @@ function updateJSVisual(){
     wrap.style.top = cy + 'px';
     wrap.style.width = (r*2) + 'px';
     wrap.style.height = (r*2) + 'px';
-    wrap.style.marginLeft = '0px';
-    // knob
     const knob = document.createElement('div');
     knob.className='js-knob';
     knob.style.transform = `translate(${knobX - cx}px, ${knobY - cy}px)`;
@@ -630,24 +587,21 @@ function updateJSVisual(){
 }
 setInterval(updateJSVisual, 80);
 
-/* small periodic spawns so arena remains alive */
+/* periodic spawns */
 setInterval(()=>{
   if (gameState==='playing' && Math.random() < 0.6) spawnPowerUp();
 }, 7000);
 
-/* safety: keep canvas focused for touch */
+/* keep canvas focused for touch */
 canvas.addEventListener('touchstart', ()=>{ canvas.focus(); }, {passive:true});
 
-/* debug: keyboard controls for desktop testing (optional) */
+/* debug keys */
 window.addEventListener('keydown', (e)=>{
-  if (e.key === 'm') { // toggle menu
-    if (gameState === 'menu') startGame('survival'); else backToMenu();
-  }
+  if (e.key === 'm') { if (gameState === 'menu') startGame('survival'); else backToMenu(); }
   if (e.key === 'r') restartGame();
 });
 
-/* finished setup */
-console.log('Arena Shooter V10.3 loaded — ready.');
+console.log('Arena Shooter V10.3a loaded — ready.');
 </script>
 </body>
 </html>
