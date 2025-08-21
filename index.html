@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-<title>Arena Shooter V11.0</title>
+<title>Arena Shooter Fixed</title>
 <style>
   html,body{height:100%;margin:0;background:#0c0c0f;touch-action:none}
   canvas{display:block}
@@ -14,7 +14,6 @@
   #score,#wave{font-size:18px}
   #gun{position:absolute;left:16px;top:74px;font-size:16px}
   #shield{position:absolute;left:16px;top:96px;font-size:14px}
-  #minimap{position:absolute;right:16px;top:14px;width:190px;height:135px;border:2px solid #fff;background:rgba(0,0,0,.45)}
   #pauseBtn{position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:auto;background:#222;color:#fff;border:1px solid #444;border-radius:10px;padding:8px 14px;font-size:16px}
   #menu,#gameover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.85);color:#fff;z-index:40;font-size:18px;padding:20px}
   .menu-panel{max-width:980px;width:100%;text-align:center}
@@ -23,6 +22,9 @@
   .gun-card{border:1px solid #444;background:#141414;color:#fff;border-radius:10px;padding:10px;cursor:pointer;text-align:left}
   .gun-card h4{margin:0 0 6px;font-size:16px}
   .gun-card.selected{outline:2px solid #6ab4ff}
+  .joystick{position:absolute;bottom:60px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.05);touch-action:none;pointer-events:auto}
+  #moveStick{left:40px}
+  #shootStick{right:40px}
 </style>
 </head>
 <body>
@@ -32,12 +34,11 @@
   <div id="hud2"><div id="score">Score: 0</div><div id="wave">Wave: 1</div></div>
   <div id="gun">Gun: Pistol</div>
   <div id="shield">Shield: 0</div>
-  <div id="minimap"></div>
   <button id="pauseBtn">Pause</button>
 </div>
 <div id="menu">
   <div class="menu-panel">
-    <h1>Arena Shooter V11.0</h1>
+    <h1>Arena Shooter</h1>
     <p>Select your starting gun:</p>
     <div class="gun-grid" id="gunSelect"></div>
     <button class="big-btn" id="startBtn">Start Game</button>
@@ -50,25 +51,22 @@
     <button class="big-btn" onclick="location.reload()">Restart</button>
   </div>
 </div>
+<div class="joystick" id="moveStick"></div>
+<div class="joystick" id="shootStick"></div>
 
 <script>
 const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
 canvas.width=window.innerWidth;canvas.height=window.innerHeight;
 
 let running=false,paused=false,wave=1,score=0;
-let player={x:canvas.width/2,y:canvas.height/2,hp:100,shield:0,gun:"Pistol"};
-let bullets=[],enemies=[],crates=[];
+let player={x:canvas.width/2,y:canvas.height/2,hp:100,shield:0,gun:"Pistol",fireCooldown:0};
+let bullets=[],enemies=[],crates=[],obstacles=[];
 const guns={
   "Pistol":{dmg:10,rate:400,speed:7},
-  "Dual Pistols":{dmg:7,rate:200,speed:7},
-  "SMG":{dmg:5,rate:120,speed:6},
-  "Rifle":{dmg:12,rate:300,speed:7},
+  "SMG":{dmg:6,rate:120,speed:6},
   "Shotgun":{dmg:8,rate:800,speed:5},
   "Sniper":{dmg:35,rate:1200,speed:9},
-  "Rocket":{dmg:50,rate:1500,speed:4},
-  "Plasma":{dmg:20,rate:600,speed:5},
-  "Flamethrower":{dmg:4,rate:50,speed:3},
-  "Laser":{dmg:15,rate:100,speed:8}
+  "Rocket":{dmg:50,rate:1500,speed:4}
 };
 
 // fill gun select
@@ -80,10 +78,9 @@ Object.keys(guns).forEach(g=>{
   if(g==="Pistol")div.classList.add("selected");
   gunSelect.appendChild(div);
 });
+document.getElementById("startBtn").onclick=()=>{document.getElementById("menu").style.display="none";running=true;spawnWave();gameLoop();};
 
-// start
-document.getElementById("startBtn").onclick=()=>{document.getElementById("menu").style.display="none";running=true;gameLoop();};
-
+// spawn wave
 function spawnWave(){
   enemies=[];
   let pool=["basic"];
@@ -91,16 +88,24 @@ function spawnWave(){
   if(wave>=3)pool.push("sniper");
   if(wave>=4)pool.push("exploder");
   if(wave>=5)pool.push("shielded");
-  let count=8+wave*2;
+  let count=6+Math.floor(Math.random()*5)+wave*1.5;
   for(let i=0;i<count;i++){
     let type=pool[Math.floor(Math.random()*pool.length)];
     let pos=spawnEdge();
-    enemies.push({x:pos.x,y:pos.y,type,hp:20+wave*2});
+    enemies.push({x:pos.x,y:pos.y,type,hp:20+wave*3});
   }
   if(wave%5===0){ // boss
     let pos=spawnEdge();
-    enemies.push({x:pos.x,y:pos.y,type:"boss",hp:200+wave*20});
+    enemies.push({x:pos.x,y:pos.y,type:"boss",hp:200+wave*30});
   }
+  // spawn crates
+  crates=[];
+  for(let i=0;i<3;i++){
+    crates.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,content:Math.random()<0.5?"gun":(Math.random()<0.5?"health":"shield")});
+  }
+  // spawn obstacles
+  obstacles=[];
+  for(let i=0;i<5;i++){obstacles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,w:60,h:60});}
 }
 function spawnEdge(){
   let side=Math.floor(Math.random()*4);
@@ -110,6 +115,23 @@ function spawnEdge(){
   return{x:Math.random()*canvas.width,y:canvas.height};
 }
 
+// joystick logic
+let moveVec={x:0,y:0},shootVec={x:0,y:0};
+function setupStick(stick,vec){
+  let dragging=false;
+  stick.addEventListener("touchstart",e=>{dragging=true;e.preventDefault();});
+  stick.addEventListener("touchmove",e=>{
+    if(!dragging)return;
+    let r=stick.getBoundingClientRect();let cx=r.left+r.width/2,cy=r.top+r.height/2;
+    let dx=e.touches[0].clientX-cx,dy=e.touches[0].clientY-cy;
+    let d=Math.hypot(dx,dy);if(d>40){dx*=40/d;dy*=40/d;}
+    vec.x=dx/40;vec.y=dy/40;
+  });
+  stick.addEventListener("touchend",()=>{dragging=false;vec.x=0;vec.y=0;});
+}
+setupStick(document.getElementById("moveStick"),moveVec);
+setupStick(document.getElementById("shootStick"),shootVec);
+
 function gameLoop(){
   if(!running)return;
   if(!paused)update();
@@ -118,23 +140,47 @@ function gameLoop(){
 }
 
 function update(){
-  // spawn wave if none
-  if(enemies.length===0){wave++;spawnWave();}
-  // update enemies
+  // player move
+  player.x+=moveVec.x*3;player.y+=moveVec.y*3;
+  // shooting
+  player.fireCooldown-=16;
+  if((shootVec.x||shootVec.y)&&player.fireCooldown<=0){
+    let g=guns[player.gun];
+    let d=Math.hypot(shootVec.x,shootVec.y);
+    bullets.push({x:player.x,y:player.y,vx:shootVec.x/d*g.speed,vy:shootVec.y/d*g.speed,dmg:g.dmg});
+    player.fireCooldown=g.rate;
+  }
+  // bullets
+  bullets=bullets.filter(b=>{
+    b.x+=b.vx;b.y+=b.vy;
+    // collide obstacles
+    for(let o of obstacles){if(b.x>o.x&&b.x<o.x+o.w&&b.y>o.y&&b.y<o.y+o.h)return false;}
+    // collide enemies
+    for(let e of enemies){if(Math.hypot(b.x-e.x,b.y-e.y)<12){e.hp-=b.dmg;return false;}}
+    return b.x>0&&b.x<canvas.width&&b.y>0&&b.y<canvas.height;
+  });
+  enemies=enemies.filter(e=>e.hp>0);
+  // enemies move
   enemies.forEach(e=>{
     let dx=player.x-e.x,dy=player.y-e.y,d=Math.hypot(dx,dy);
-    let spd=1; if(e.type==="runner")spd=2; if(e.type==="boss")spd=1.2;
-    e.x+=dx/d*spd; e.y+=dy/d*spd;
+    let spd=(e.type==="runner"?2:1);if(e.type==="boss")spd=1.2;
+    e.x+=dx/d*spd;e.y+=dy/d*spd;
   });
-  // update bullets
-  bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;});
+  if(enemies.length===0){wave++;spawnWave();}
 }
 
 function render(){
   ctx.fillStyle="#0c0c0f";ctx.fillRect(0,0,canvas.width,canvas.height);
+  // obstacles
+  ctx.fillStyle="#666";obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+  // crates
+  crates.forEach(c=>{ctx.fillStyle=c.content==="gun"?"orange":(c.content==="health"?"green":"cyan");ctx.fillRect(c.x-10,c.y-10,20,20);});
+  // player
   ctx.fillStyle="blue";ctx.beginPath();ctx.arc(player.x,player.y,15,0,Math.PI*2);ctx.fill();
+  // enemies
   enemies.forEach(e=>{ctx.fillStyle=e.type==="boss"?"purple":"red";ctx.beginPath();ctx.arc(e.x,e.y,12,0,Math.PI*2);ctx.fill();});
-  bullets.forEach(b=>{ctx.fillStyle="yellow";ctx.beginPath();ctx.arc(b.x,b.y,4,0,Math.PI*2);ctx.fill();});
+  // bullets
+  ctx.fillStyle="yellow";bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,4,0,Math.PI*2);ctx.fill();});
 }
 </script>
 </body>
