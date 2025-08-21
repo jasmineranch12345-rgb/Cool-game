@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-<title>Arena Shooter V10.5</title>
+<title>Arena Shooter V10.6</title>
 <style>
   :root{--bg:#0c0c0f;}
   html,body{height:100%;margin:0;background:var(--bg);-webkit-user-select:none;user-select:none;touch-action:none;}
@@ -19,11 +19,14 @@
   #minimap{position:absolute;right:16px;top:14px;width:160px;height:110px;border:2px solid rgba(255,255,255,0.9);background:rgba(0,0,0,0.45);pointer-events:auto}
   #pauseBtn{position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:auto;background:#222;color:#fff;border:1px solid #444;border-radius:10px;padding:8px 14px;font-size:16px}
   #menu,#gameover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);color:white;z-index:40;font-size:18px;padding:20px;box-sizing:border-box}
-  .menu-panel{max-width:720px;width:100%;text-align:center}
+  .menu-panel{max-width:760px;width:100%;text-align:center}
   .big-btn{display:inline-block;margin:12px;padding:12px 20px;background:#222;color:white;border-radius:10px;border:1px solid #444;font-size:18px;pointer-events:auto}
   .legend{display:flex;flex-wrap:wrap;justify-content:center;margin-top:12px;gap:8px}
   .legend-item{background:#1a1a1a;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:8px}
   .legend-emoji{font-size:18px}
+  .gun-select{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0}
+  .gun-btn{pointer-events:auto;border:1px solid #444;background:#1a1a1a;color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+  .gun-btn.selected{outline:2px solid #6ab4ff}
   .js-visual{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:30}
   .js-circle{position:absolute;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);width:100px;height:100px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center}
   .js-knob{width:46px;height:46px;border-radius:999px;background:rgba(255,255,255,0.12)}
@@ -44,33 +47,37 @@
 
 <div id="menu">
   <div class="menu-panel">
-    <h1>Arena Shooter — V10.5</h1>
+    <h1>Arena Shooter — V10.6</h1>
     <div style="margin:10px 0">Left joystick = move · Right joystick = aim & shoot</div>
+
+    <div style="margin:8px 0">Start with a gun:</div>
+    <div id="gunSelect" class="gun-select">
+      <button class="gun-btn selected" data-gun="pistol">🔫 Pistol</button>
+      <button class="gun-btn" data-gun="shotgun">🟣 Shotgun</button>
+      <button class="gun-btn" data-gun="rifle">🔵 Rifle</button>
+      <button class="gun-btn" data-gun="rocket">🟥 Rocket</button>
+    </div>
+
     <div style="margin:14px 0">
       <button class="big-btn" onclick="startGame('survival')">Start Survival</button>
       <button class="big-btn" onclick="startGame('time')">Start Time Attack</button>
     </div>
 
-    <div style="margin-top:10px">Pickups:</div>
+    <div style="margin-top:10px">Pickups (in-game):</div>
     <div class="legend">
-      <div class="legend-item"><div class="legend-emoji">🔫</div><div>Pistol (default)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🔫</div><div>Pistol</div></div>
       <div class="legend-item"><div class="legend-emoji">🟣</div><div>Shotgun</div></div>
       <div class="legend-item"><div class="legend-emoji">🔵</div><div>Rifle</div></div>
       <div class="legend-item"><div class="legend-emoji">🟥</div><div>Rocket</div></div>
     </div>
 
-    <div style="margin-top:10px">Power-ups:</div>
+    <div style="margin-top:10px">Cover & Crates:</div>
     <div class="legend">
-      <div class="legend-item"><div class="legend-emoji">⚡</div><div>Rapid Fire</div></div>
-      <div class="legend-item"><div class="legend-emoji">🛡</div><div>Shield</div></div>
-      <div class="legend-item"><div class="legend-emoji">💖</div><div>Heal</div></div>
-      <div class="legend-item"><div class="legend-emoji">✦</div><div>Double Points</div></div>
-      <div class="legend-item"><div class="legend-emoji">🏃</div><div>Speed</div></div>
-      <div class="legend-item"><div class="legend-emoji">💥</div><div>Explosive</div></div>
-      <div class="legend-item"><div class="legend-emoji">🔱</div><div>Spread Boost</div></div>
+      <div class="legend-item"><div class="legend-emoji">🟫</div><div>Crates are destructible</div></div>
+      <div class="legend-item"><div class="legend-emoji">👁️‍🗨️</div><div>Enemies need line-of-sight to shoot</div></div>
     </div>
 
-    <div style="margin-top:14px;font-size:14px;color:#ddd">Bullets are blocked by obstacles — use cover!</div>
+    <div style="margin-top:14px;font-size:14px;color:#ddd">Bullets travel until they hit an enemy, a crate/obstacle, or leave the arena.</div>
   </div>
 </div>
 
@@ -88,13 +95,15 @@
 <div class="js-visual" id="jsVisual"></div>
 
 <script>
-/* ======= Arena Shooter V10.5 (Final) =======
-   Changes vs 10.4:
-   - Enemy projectiles (blocked by obstacles).
-   - Gun pickups (Pistol/Shotgun/Rifle/Rocket). Current gun shown in HUD.
-   - Bullets DO NOT pass through obstacles (no ricochet; they stop).
-   - Kept: pause button, haptics, minimap, power-ups, iPad joysticks, menu bindings.
-   ------------------------------------------------------------ */
+/* ======= Arena Shooter V10.6 (Final) =======
+   New:
+   - Bullets persist until collision or leaving arena (no timed despawn).
+   - Destructible crates with HP + debris; can drop gun pickups.
+   - Enemy line-of-sight checks before firing.
+   - Power-ups removed; guns only (select at menu + pickups).
+   Kept:
+   - Pause, haptics, iPad joysticks, minimap, bound menu controls.
+*/
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -125,34 +134,13 @@ const player = { x: arena.width/2, y: arena.height/2, r: 20, color:'#4da6ff', sp
 let bullets = [];       // player bullets
 let enemyBullets = [];  // enemy bullets
 let enemies = [];
-let powerUps = [];
 let gunPickups = [];
-let obstacles = [];
+let obstacles = [];     // rect/circle/triangle
+let crates = [];        // destructible {x,y,w,h,r,shape,hp,maxHp}
+let debris = [];        // particle effects
 
 const leftStick = { x:110, y:innerHeight-110, r:56, dx:0, dy:0, id:null };
 const rightStick = { x:innerWidth-110, y:innerHeight-110, r:56, dx:0, dy:0, id:null, active:false, lastShot:0 };
-
-const powerUpTypes = ['rapid','shield','double','speed','heal','explosive','spread'];
-
-let rapidFire = 0, doublePoints = 0, speedBoost = 0, explosive = false, spreadBoost = false;
-
-const jsVisual = document.getElementById('jsVisual');
-
-(function createObstacles(){
-  const shapes = ['rect','circle','triangle'];
-  for (let i=0;i<55;i++){
-    const shape = shapes[Math.floor(Math.random()*shapes.length)];
-    const x = Math.random()*(arena.width-160)+80;
-    const y = Math.random()*(arena.height-160)+80;
-    if (shape === 'rect'){
-      obstacles.push({shape:'rect', x:x, y:y, w:80 + Math.random()*80, h:50 + Math.random()*120});
-    } else if (shape === 'circle'){
-      obstacles.push({shape:'circle', x:x, y:y, r:30 + Math.random()*40});
-    } else {
-      obstacles.push({shape:'triangle', x:x, y:y, r:30 + Math.random()*40});
-    }
-  }
-})();
 
 /* ---------- Guns ---------- */
 const guns = {
@@ -161,24 +149,25 @@ const guns = {
   rifle:   { name:'Rifle',   fireRate:120, bulletSpeed:12, damage:1, spreadCount:1, spreadAngle:0, radius:5, color:'#b4d1ff', aoe:0 },
   rocket:  { name:'Rocket',  fireRate:700, bulletSpeed:7.5,damage:2, spreadCount:1, spreadAngle:0, radius:7, color:'#ff6b6b', aoe:90 }
 };
+let selectedGunKey = 'pistol';
 let currentGun = guns.pistol;
 
 function setGun(g){ currentGun = g; document.getElementById('gun').innerText = 'Gun: ' + g.name; vibrate(25); }
-function spawnGunPickup(){
+function spawnGunPickup(forceKey=null, atX=null, atY=null){
   const keys = Object.keys(guns);
-  const key = keys[Math.floor(Math.random()*keys.length)];
-  const type = key;
+  const key = forceKey || keys[Math.floor(Math.random()*keys.length)];
   gunPickups.push({
-    x: Math.random()*(arena.width-80)+40,
-    y: Math.random()*(arena.height-80)+40,
+    x: atX ?? (Math.random()*(arena.width-80)+40),
+    y: atY ?? (Math.random()*(arena.height-80)+40),
     r:16,
-    type
+    type: key
   });
 }
 
 /* ---------- helpers ---------- */
 function vibrate(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(_){} }
 
+// basic collisions
 function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
   const closestX = Math.max(rx, Math.min(cx, rx+rw));
   const closestY = Math.max(ry, Math.min(cy, ry+rh));
@@ -190,21 +179,35 @@ function circleCircleCollision(aX,aY,aR, bX,bY,bR){
   const d = Math.hypot(aX-bX, aY-bY);
   return d < (aR + bR);
 }
-function circleTriangleCollision(cx,cy,cr, tx,ty,tr){
+function circleTriangleCollision(cx,cy,cr, tx,ty,tr){ // triangle approx by bounding box for perf
   return Math.abs(cx - tx) < (tr + cr) && Math.abs(cy - ty) < (tr + cr);
 }
-function bulletHitsObstacle(bx,by,br){
-  for (const ob of obstacles){
-    if (ob.shape==='rect'){
-      if (circleRectCollision(bx,by,br, ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h)) return true;
-    } else if (ob.shape==='circle'){
-      if (circleCircleCollision(bx,by,br, ob.x,ob.y,ob.r)) return true;
-    } else {
-      if (circleTriangleCollision(bx,by,br, ob.x,ob.y,ob.r)) return true;
+
+// LOS raycast (sample along segment)
+function hasLineOfSight(ax,ay,bx,by){
+  const steps = Math.ceil(Math.hypot(bx-ax, by-ay) / 16);
+  for (let i=1;i<=steps;i++){
+    const t = i/steps;
+    const px = ax + (bx-ax)*t;
+    const py = ay + (by-ay)*t;
+    // obstacles
+    for (const ob of obstacles){
+      if (ob.shape==='rect'){
+        if (circleRectCollision(px,py,3, ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h)) return false;
+      } else if (ob.shape==='circle'){
+        if (circleCircleCollision(px,py,3, ob.x,ob.y,ob.r)) return false;
+      } else {
+        if (circleTriangleCollision(px,py,3, ob.x,ob.y,ob.r)) return false;
+      }
+    }
+    // crates also block LOS
+    for (const c of crates){
+      if (circleRectCollision(px,py,3, c.x-c.w/2, c.y-c.h/2, c.w, c.h)) return false;
     }
   }
-  return false;
+  return true;
 }
+
 function clampToArena(ent){
   const rr = ent.r || 0;
   ent.x = Math.max(rr, Math.min(arena.width - rr, ent.x));
@@ -212,6 +215,7 @@ function clampToArena(ent){
 }
 function attemptMove(entity, nextX, nextY){
   let canX = true, canY = true;
+  // static obstacles
   for (const ob of obstacles){
     if (ob.shape === 'rect'){
       if (circleRectCollision(nextX, entity.y, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canX = false;
@@ -225,12 +229,42 @@ function attemptMove(entity, nextX, nextY){
     }
     if (!canX && !canY) break;
   }
+  // crates collide
+  for (const c of crates){
+    if (circleRectCollision(nextX, entity.y, entity.r, c.x-c.w/2, c.y-c.h/2, c.w, c.h)) canX = false;
+    if (circleRectCollision(entity.x, nextY, entity.r, c.x-c.w/2, c.y-c.h/2, c.w, c.h)) canY = false;
+  }
   if (canX) entity.x = nextX;
   if (canY) entity.y = nextY;
   clampToArena(entity);
 }
 
-/* ---------- spawns & difficulty ---------- */
+// build arena: static obstacles + crates
+(function createLevel(){
+  const shapes = ['rect','circle','triangle'];
+  for (let i=0;i<42;i++){
+    const shape = shapes[Math.floor(Math.random()*shapes.length)];
+    const x = Math.random()*(arena.width-160)+80;
+    const y = Math.random()*(arena.height-160)+80;
+    if (shape === 'rect'){
+      obstacles.push({shape:'rect', x:x, y:y, w:80 + Math.random()*80, h:50 + Math.random()*120});
+    } else if (shape === 'circle'){
+      obstacles.push({shape:'circle', x:x, y:y, r:30 + Math.random()*40});
+    } else {
+      obstacles.push({shape:'triangle', x:x, y:y, r:30 + Math.random()*40});
+    }
+  }
+  // crates (destructible rectangles)
+  for (let i=0;i<22;i++){
+    const w = 48 + Math.random()*20, h = 38 + Math.random()*24;
+    const x = Math.random()*(arena.width-160)+80;
+    const y = Math.random()*(arena.height-160)+80;
+    const hp = 3 + Math.floor(Math.random()*3); // 3..5
+    crates.push({shape:'crate', x,y, w,h, hp, maxHp:hp});
+  }
+})();
+
+/* ---------- Spawns & Difficulty ---------- */
 let waveTimerId = null;
 function spawnEnemy(nearPlayerBias = 1.0){
   const side = Math.floor(Math.random()*4);
@@ -247,16 +281,11 @@ function spawnEnemy(nearPlayerBias = 1.0){
   const bonusHP = Math.floor(difficultyTime/60) % 5;
   const health = t === 'fast' ? 1 : 6 + Math.floor(Math.random()*4) + bonusHP;
   const dmg = t === 'fast' ? 4 + Math.floor(difficultyTime/120) : 12 + Math.floor(difficultyTime/90);
-  // enemy shooting params
   const fireRate = (t==='fast') ? 900 : 1200; // ms
   const bulletSpeed = (t==='fast') ? 8.5 : 7;
   enemies.push({ x,y, type:t, r: t==='fast'?10:30, color: t==='fast'?'#ff6b6b':'#9e2a2b',
                  health, maxHealth:health, lastHit:0, damage:dmg,
                  lastShot:0, fireRate, bulletSpeed, range: 800 });
-}
-function spawnPowerUp(){
-  const type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
-  powerUps.push({ x: Math.random()*(arena.width-80)+40, y: Math.random()*(arena.height-80)+40, r:16, type, duration: 800 });
 }
 function startWaves(){
   for (let i=0;i<4;i++) spawnEnemy(0.8);
@@ -265,13 +294,12 @@ function startWaves(){
     if (gameState==='playing'){
       const extra = Math.min(6, Math.floor(difficultyTime/25));
       for(let i=0;i<4+extra;i++) spawnEnemy(1.2);
-      // occasionally drop a gun
       if (Math.random() < 0.6) spawnGunPickup();
     }
   }, 4500);
 }
 
-/* ---------- input (touch & mouse) ---------- */
+/* ---------- Input (touch & mouse) ---------- */
 canvas.addEventListener('touchstart', (ev)=>{
   for(const t of ev.changedTouches){
     const tx = t.clientX, ty = t.clientY;
@@ -324,17 +352,14 @@ addEventListener('mouseup', ()=>{
   leftStick.dx=0; leftStick.dy=0; rightStick.dx=0; rightStick.dy=0; rightStick.active=false;
 });
 
-/* ---------- core update ---------- */
-let lastFrame = performance.now();
+/* ---------- Shooting ---------- */
 function firePlayer(angle){
   const now = Date.now();
-  const fireBoost = (rapidFire>0) ? 0.6 : 1;
-  const fireRate = currentGun.fireRate * fireBoost;
+  const fireRate = currentGun.fireRate;
   if (rightStick.lastShot && now - rightStick.lastShot < fireRate) return;
   rightStick.lastShot = now;
 
-  const spreadN = currentGun.spreadCount + (spreadBoost?2:0);
-  const total = spreadN;
+  const total = currentGun.spreadCount;
   const base = angle;
   const spread = currentGun.spreadAngle;
   for (let i=0;i<total;i++){
@@ -346,14 +371,15 @@ function firePlayer(angle){
       y: player.y + Math.sin(a)*player.r,
       dx, dy,
       r: currentGun.radius,
-      life: 260,
       color: currentGun.color,
       damage: currentGun.damage,
-      aoe: currentGun.aoe
+      aoe: currentGun.aoe // rocket explosion radius
     });
   }
 }
 
+/* ---------- Update ---------- */
+let lastFrame = performance.now();
 function update(dt){
   if (gameState !== 'playing') return;
 
@@ -363,7 +389,7 @@ function update(dt){
   const ldx = leftStick.dx, ldy = leftStick.dy;
   const lmag = Math.hypot(ldx,ldy);
   if (lmag > 8){
-    const s = player.speed * (speedBoost>0?1.45:1.0);
+    const s = player.speed;
     const nx = player.x + (ldx / lmag) * s;
     const ny = player.y + (ldy / lmag) * s;
     attemptMove(player, nx, ny);
@@ -379,67 +405,75 @@ function update(dt){
     }
   }
 
-  // --- player bullets ---
+  // --- move player bullets; stop on first hit ---
   for (let i = bullets.length-1; i>=0; i--){
     const b = bullets[i];
-    const nx = b.x + b.dx;
-    const ny = b.y + b.dy;
+    const nx = b.x + b.dx, ny = b.y + b.dy;
 
-    // check obstacle FIRST; if will hit, stop bullet there
-    if (bulletHitsObstacle(nx, ny, b.r)){
-      // AOE if rocket
-      if (b.aoe>0){
-        for (let j=enemies.length-1;j>=0;j--){
-          const e = enemies[j];
-          if (Math.hypot(e.x - b.x, e.y - b.y) <= b.aoe){
-            e.health -= 2;
-            if (e.health <= 0){ score += (doublePoints>0)?2:1; enemies.splice(j,1); }
+    // 1) obstacle collision
+    let stopped = false;
+    // static obstacles
+    for (const ob of obstacles){
+      if (ob.shape==='rect' && circleRectCollision(nx,ny,b.r, ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h)){ stopped = true; break; }
+      if (ob.shape==='circle' && circleCircleCollision(nx,ny,b.r, ob.x,ob.y,ob.r)){ stopped = true; break; }
+      if (ob.shape==='triangle' && circleTriangleCollision(nx,ny,b.r, ob.x,ob.y,ob.r)){ stopped = true; break; }
+    }
+    // crates (apply damage)
+    if (!stopped){
+      for (let ci=crates.length-1; ci>=0; ci--){
+        const c = crates[ci];
+        if (circleRectCollision(nx,ny,b.r, c.x-c.w/2, c.y-c.h/2, c.w, c.h)){
+          c.hp -= (b.aoe>0 ? 2 : 1);
+          if (c.hp <= 0){
+            // break crate -> debris & maybe drop gun
+            createDebris(c.x, c.y, 10);
+            if (Math.random() < 0.5) spawnGunPickup(null, c.x, c.y);
+            crates.splice(ci,1);
           }
+          stopped = true;
+          break;
         }
+      }
+    }
+    if (stopped){
+      // rocket explosion
+      if (b.aoe>0){
+        explodeAt(b.x, b.y, b.aoe, 2);
       }
       bullets.splice(i,1);
       continue;
     }
 
-    b.x = nx; b.y = ny;
-    b.life -= dt;
-    if (b.x < 0 || b.x > arena.width || b.y < 0 || b.y > arena.height || b.life <= 0){
-      bullets.splice(i,1); continue;
-    }
-
-    // hit enemy
+    // 2) enemy hit
+    let hitEnemy = false;
     for (let j = enemies.length-1; j>=0; j--){
       const e = enemies[j];
-      if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + b.r){
+      if (Math.hypot(e.x - nx, e.y - ny) < e.r + b.r){
         e.health -= b.damage;
-        if (b.aoe>0){
-          for (let k=enemies.length-1;k>=0;k--){
-            const e2 = enemies[k];
-            const d2 = Math.hypot(e2.x - b.x, e2.y - b.y);
-            if (d2 < b.aoe) e2.health -= b.damage;
-          }
-        }
+        if (b.aoe>0){ explodeAt(nx, ny, b.aoe, b.damage); }
         bullets.splice(i,1);
-        if (e.health <= 0){
-          score += (doublePoints>0) ? 2 : 1;
-          enemies.splice(j,1);
-          vibrate(12);
-        }
+        if (e.health <= 0){ score += 1; enemies.splice(j,1); vibrate(12); }
+        hitEnemy = true;
         break;
       }
     }
+    if (hitEnemy) continue;
+
+    // 3) advance or remove if out of arena
+    b.x = nx; b.y = ny;
+    if (b.x < -20 || b.x > arena.width+20 || b.y < -20 || b.y > arena.height+20){
+      bullets.splice(i,1); continue;
+    }
   }
 
-  // --- enemy AI + shooting ---
+  // --- enemy AI + LOS shooting ---
   const now = Date.now();
   for (const e of enemies){
     // move toward player
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
     const base = (e.type==='fast')?3.2:1.3;
     const spd = base + Math.min(1.5, difficultyTime/1200);
-    const ex = e.x + Math.cos(ang) * spd;
-    const ey = e.y + Math.sin(ang) * spd;
-    attemptMove(e, ex, ey);
+    attemptMove(e, e.x + Math.cos(ang)*spd, e.y + Math.sin(ang)*spd);
 
     // melee contact
     if (Math.hypot(player.x - e.x, player.y - e.y) < player.r + e.r + 2){
@@ -449,48 +483,50 @@ function update(dt){
       }
     }
 
-    // ranged attack
+    // LOS check before shooting
     const dist = Math.hypot(player.x - e.x, player.y - e.y);
     if (dist < e.range && (!e.lastShot || now - e.lastShot >= e.fireRate)){
-      // shoot toward player
-      const a = Math.atan2(player.y - e.y, player.x - e.x);
-      const dx = Math.cos(a)*e.bulletSpeed, dy = Math.sin(a)*e.bulletSpeed;
-      enemyBullets.push({ x:e.x + Math.cos(a)*e.r, y:e.y + Math.sin(a)*e.r, dx, dy, r:5, life:260, color:'#ff9aa2', damage:8 });
-      e.lastShot = now;
+      if (hasLineOfSight(e.x, e.y, player.x, player.y)){
+        const a = Math.atan2(player.y - e.y, player.x - e.x);
+        const dx = Math.cos(a)*e.bulletSpeed, dy = Math.sin(a)*e.bulletSpeed;
+        enemyBullets.push({ x:e.x + Math.cos(a)*e.r, y:e.y + Math.sin(a)*e.r, dx, dy, r:5, color:'#ff9aa2', damage:8 });
+        e.lastShot = now;
+      }
     }
   }
 
-  // --- enemy bullets ---
+  // --- enemy bullets; stop on first hit ---
   for (let i = enemyBullets.length-1; i>=0; i--){
     const b = enemyBullets[i];
     const nx = b.x + b.dx, ny = b.y + b.dy;
 
-    // obstacle stops enemy bullet too
-    if (bulletHitsObstacle(nx, ny, b.r)){
-      enemyBullets.splice(i,1); continue;
+    // hit static obstacles
+    let stop = false;
+    for (const ob of obstacles){
+      if (ob.shape==='rect' && circleRectCollision(nx,ny,b.r, ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h)){ stop=true; break; }
+      if (ob.shape==='circle' && circleCircleCollision(nx,ny,b.r, ob.x,ob.y,ob.r)){ stop=true; break; }
+      if (ob.shape==='triangle' && circleTriangleCollision(nx,ny,b.r, ob.x,ob.y,ob.r)){ stop=true; break; }
     }
-
-    b.x = nx; b.y = ny;
-    b.life -= dt;
-    if (b.x < 0 || b.x > arena.width || b.y < 0 || b.y > arena.height || b.life <= 0){
-      enemyBullets.splice(i,1); continue;
+    // hit crates (no damage to crates from enemy bullets by default)
+    if (!stop){
+      for (const c of crates){
+        if (circleRectCollision(nx,ny,b.r, c.x-c.w/2, c.y-c.h/2, c.w, c.h)){ stop=true; break; }
+      }
     }
+    if (stop){ enemyBullets.splice(i,1); continue; }
 
     // hit player
-    if (Math.hypot(player.x - b.x, player.y - b.y) < player.r + b.r){
-      player.health -= b.damage;
-      player.flash = 10; vibrate(25);
+    if (Math.hypot(player.x - nx, player.y - ny) < player.r + b.r){
+      player.health -= b.damage; player.flash = 10; vibrate(25);
       enemyBullets.splice(i,1);
       if (player.health <= 0){ player.health = 0; endGame(); }
+      continue;
     }
-  }
 
-  // power-ups
-  for (let i=powerUps.length-1;i>=0;i--){
-    const p = powerUps[i];
-    if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r){
-      applyPowerUp(p.type);
-      powerUps.splice(i,1); vibrate(18);
+    // move or despawn if out of arena
+    b.x = nx; b.y = ny;
+    if (b.x < -20 || b.x > arena.width+20 || b.y < -20 || b.y > arena.height+20){
+      enemyBullets.splice(i,1); continue;
     }
   }
 
@@ -502,29 +538,37 @@ function update(dt){
     }
   }
 
-  // buffs decay & timer
-  if (rapidFire>0) rapidFire--;
-  if (doublePoints>0) doublePoints--;
-  if (speedBoost>0) speedBoost--;
-  if (gameMode === 'time') {
-    timer -= dt / 1000;
-    if (timer <= 0) endGame();
+  // debris particles
+  for (let i=debris.length-1;i>=0;i--){
+    const dbr = debris[i];
+    dbr.x += dbr.vx; dbr.y += dbr.vy;
+    dbr.life -= dt;
+    dbr.alpha -= 0.02;
+    if (dbr.life<=0 || dbr.alpha<=0){ debris.splice(i,1); }
   }
 }
 
-function applyPowerUp(type){
-  switch(type){
-    case 'rapid': rapidFire = 300; break;
-    case 'shield': player.health = Math.min(100, player.health + 45); break;
-    case 'double': doublePoints = 300; break;
-    case 'speed': speedBoost = 300; break;
-    case 'heal': player.health = Math.min(100, player.health + 30); break;
-    case 'explosive': explosive = true; setTimeout(()=>explosive=false,5000); break;
-    case 'spread': spreadBoost = true; setTimeout(()=>spreadBoost=false,5000); break;
+function explodeAt(x,y,radius, damage){
+  // damage enemies in radius
+  for (let j=enemies.length-1;j>=0;j--){
+    const e = enemies[j];
+    if (Math.hypot(e.x - x, e.y - y) <= radius){
+      e.health -= damage;
+      if (e.health <= 0){ score += 1; enemies.splice(j,1); }
+    }
+  }
+  createDebris(x,y,14);
+}
+
+function createDebris(x,y,count){
+  for (let i=0;i<count;i++){
+    const a = Math.random()*Math.PI*2;
+    const sp = 1 + Math.random()*3;
+    debris.push({x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:600+Math.random()*400, alpha:0.8});
   }
 }
 
-/* ---------- drawing ---------- */
+/* ---------- Drawing ---------- */
 function drawScene(){
   ctx.fillStyle = '#0c0c0f';
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -535,7 +579,7 @@ function drawScene(){
   ctx.save();
   ctx.translate(-camX, -camY);
 
-  // obstacles
+  // static obstacles
   for (const ob of obstacles){
     ctx.fillStyle = '#444';
     if (ob.shape === 'rect'){
@@ -547,18 +591,30 @@ function drawScene(){
     }
   }
 
-  // bullets (player)
-  for (const b of bullets){
-    ctx.fillStyle = b.color;
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-    if (b.aoe>0){
-      ctx.globalAlpha = 0.08;
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI*2); ctx.fillStyle = '#ff6b6b'; ctx.fill();
-      ctx.globalAlpha = 1;
+  // crates (destructible)
+  for (const c of crates){
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(c.x - c.w/2, c.y - c.h/2, c.w, c.h);
+    // tiny HP bar
+    if (c.hp < c.maxHp){
+      ctx.fillStyle = '#222'; ctx.fillRect(c.x - c.w/2, c.y - c.h/2 - 8, c.w, 4);
+      ctx.fillStyle = '#5ee07a'; ctx.fillRect(c.x - c.w/2, c.y - c.h/2 - 8, (c.hp/c.maxHp)*c.w, 4);
     }
   }
 
-  // bullets (enemy)
+  // debris
+  for (const d of debris){
+    ctx.globalAlpha = Math.max(0, d.alpha);
+    ctx.fillStyle = '#aa8460';
+    ctx.beginPath(); ctx.arc(d.x, d.y, 3, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // bullets
+  for (const b of bullets){
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+  }
   for (const b of enemyBullets){
     ctx.fillStyle = b.color;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
@@ -580,23 +636,15 @@ function drawScene(){
     }
   }
 
-  // powerups (emoji)
+  // gun pickups
   ctx.font = '22px serif';
-  for (const p of powerUps){
-    let emoji = '⚡';
-    if (p.type==='shield') emoji='🛡'; else if (p.type==='double') emoji='✦';
-    else if (p.type==='speed') emoji='🏃'; else if (p.type==='heal') emoji='💖';
-    else if (p.type==='explosive') emoji='💥'; else if (p.type==='spread') emoji='🔱';
-    ctx.fillText(emoji, p.x - 8, p.y + 8);
-  }
-
-  // gun pickups (simple colored dots + label)
   for (const g of gunPickups){
-    let c = '#fff', label='🔫';
-    if (g.type==='shotgun'){ c='#b388ff'; label='🟣'; }
-    else if (g.type==='rifle'){ c='#6ab4ff'; label='🔵'; }
-    else if (g.type==='rocket'){ c='#ff6b6b'; label='🟥'; }
-    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2); ctx.fill();
+    let label='🔫', c='#fff';
+    if (g.type==='shotgun'){ label='🟣'; c='#b388ff'; }
+    else if (g.type==='rifle'){ label='🔵'; c='#6ab4ff'; }
+    else if (g.type==='rocket'){ label='🟥'; c='#ff6b6b'; }
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle='#fff'; ctx.fillText(label, g.x-7, g.y+7);
   }
 
@@ -631,7 +679,7 @@ function drawScene(){
   document.getElementById('timer').innerText = gameMode === 'time' ? ('Time: ' + Math.max(0, Math.ceil(timer))) : '';
 }
 
-/* ---------- minimap ---------- */
+/* ---------- Minimap ---------- */
 function drawMinimap(){
   mm.clearRect(0,0,minimapCanvas.width,minimapCanvas.height);
   mm.fillStyle = '#080808';
@@ -639,29 +687,34 @@ function drawMinimap(){
   const sx = minimapCanvas.width / arena.width;
   const sy = minimapCanvas.height / arena.height;
 
+  // static obstacles
   mm.fillStyle = '#444';
   for (const ob of obstacles){
     mm.fillRect(Math.floor(ob.x * sx) - 1, Math.floor(ob.y * sy) - 1, 3, 3);
   }
-  mm.fillStyle = '#ffd54f';
-  for (const p of powerUps){
-    mm.fillRect(Math.floor(p.x * sx)-1, Math.floor(p.y * sy)-1, 3, 3);
+  // crates
+  mm.fillStyle = '#a07755';
+  for (const c of crates){
+    mm.fillRect(Math.floor(c.x*sx)-2, Math.floor(c.y*sy)-2, 4, 4);
   }
+  // gun pickups
   mm.fillStyle = '#a0e0ff';
   for (const g of gunPickups){
     mm.fillRect(Math.floor(g.x*sx)-1, Math.floor(g.y*sy)-1, 3,3);
   }
+  // enemies
   for (const e of enemies){
     mm.fillStyle = e.type === 'fast' ? '#ff6b6b' : '#8b1f2b';
     const ex = Math.floor(e.x * sx), ey = Math.floor(e.y * sy);
     if (e.type === 'fast'){ mm.beginPath(); mm.arc(ex, ey, 2, 0, Math.PI*2); mm.fill(); }
     else { mm.beginPath(); mm.moveTo(ex, ey-3); mm.lineTo(ex-3, ey+3); mm.lineTo(ex+3, ey+3); mm.closePath(); mm.fill(); }
   }
+  // player
   mm.fillStyle = '#4da6ff';
   mm.fillRect(Math.floor(player.x * sx)-2, Math.floor(player.y * sy)-2, 4, 4);
 }
 
-/* ---------- main loop ---------- */
+/* ---------- Main Loop ---------- */
 let running = true;
 function mainLoop(ts){
   const dt = Math.min(40, ts - lastFrame);
@@ -675,22 +728,24 @@ function mainLoop(ts){
   if (running) requestAnimationFrame(mainLoop);
 }
 
-/* ---------- control (exposed) ---------- */
+/* ---------- Controls (exposed) ---------- */
 function _startGame(mode){
   gameMode = mode || 'survival';
   timer = (gameMode==='time') ? 60 : 9999;
   score = 0;
-  bullets = []; enemyBullets = []; enemies = []; powerUps = []; gunPickups = [];
+  bullets = []; enemyBullets = []; enemies = []; gunPickups = []; debris = [];
+  // keep obstacles and crates layout (fresh HP):
+  for (const c of crates){ c.hp = c.maxHp; }
   player.x = arena.width/2; player.y = arena.height/2; player.health=100; player.flash=0;
-  rapidFire = doublePoints = speedBoost = 0; explosive=false; spreadBoost=false;
   difficultyTime = 0;
-  setGun(guns.pistol);
+
+  setGun(guns[selectedGunKey]);
 
   document.getElementById('menu').style.display = 'none';
   document.getElementById('gameover').style.display = 'none';
   gameState = 'playing';
   startWaves();
-  for (let i=0;i<3;i++) spawnPowerUp();
+  // start with a couple of pickups on map
   for (let i=0;i<2;i++) spawnGunPickup();
   vibrate(20);
 }
@@ -713,18 +768,19 @@ function _togglePause(){
   if (gameState === 'playing'){ gameState = 'paused'; pauseBtn.textContent = 'Resume'; }
   else if (gameState === 'paused'){ gameState = 'playing'; pauseBtn.textContent = 'Pause'; }
 }
-/* bindings for buttons */
+/* bindings */
 window.startGame = _startGame;
 window.backToMenu = _backToMenu;
 window.restartGame = _restartGame;
 
 pauseBtn.addEventListener('click', _togglePause);
 
-/* ---------- boot ---------- */
+/* ---------- Boot ---------- */
 resize();
 requestAnimationFrame(mainLoop);
 
 /* joystick visuals (optional) */
+const jsVisual = document.getElementById('jsVisual');
 function updateJSVisual(){
   jsVisual.innerHTML = '';
   const createCircle = (cx, cy, r, knobX, knobY) => {
@@ -745,11 +801,10 @@ function updateJSVisual(){
 }
 setInterval(updateJSVisual, 80);
 
-/* periodic spawns */
+/* periodic loose pickups */
 setInterval(()=>{
-  if (gameState==='playing' && Math.random() < 0.6) spawnPowerUp();
   if (gameState==='playing' && Math.random() < 0.4) spawnGunPickup();
-}, 8000);
+}, 9000);
 
 /* keep canvas focused for touch */
 canvas.addEventListener('touchstart', ()=>{ canvas.focus(); }, {passive:true});
@@ -761,7 +816,16 @@ addEventListener('keydown', (e)=>{
   if (e.key === 'p') _togglePause();
 });
 
-console.log('Arena Shooter V10.5 — bullets blocked by obstacles, enemies shoot back, gun pickups enabled.');
+/* menu gun selection */
+const gunSelect = document.getElementById('gunSelect');
+gunSelect.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.gun-btn'); if (!btn) return;
+  for (const b of gunSelect.querySelectorAll('.gun-btn')) b.classList.remove('selected');
+  btn.classList.add('selected');
+  selectedGunKey = btn.dataset.gun;
+});
+
+console.log('Arena Shooter V10.6 — LOS enemies, crates, bullets persist, guns only.');
 </script>
 </body>
 </html>
