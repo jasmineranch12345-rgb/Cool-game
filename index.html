@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-<title>Arena Shooter V10.4</title>
+<title>Arena Shooter V10.5</title>
 <style>
-  :root{--bg:#0c0c0f;--panel:#111;--accent:#fff;}
+  :root{--bg:#0c0c0f;}
   html,body{height:100%;margin:0;background:var(--bg);-webkit-user-select:none;user-select:none;touch-action:none;}
   canvas{display:block;background:transparent;}
   #ui{
-    position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;font-family:Segoe UI,Roboto,Arial;
+    position:fixed;inset:0;pointer-events:none;font-family:Segoe UI,Roboto,Arial;color:#fff
   }
   #health-bar{position:absolute;left:16px;top:14px;width:220px;height:20px;border:2px solid rgba(255,255,255,0.9);background:#222;pointer-events:auto}
   #health-fill{height:100%;width:100%;background:linear-gradient(90deg,#5ee07a,#37b24d);transition:width .12s linear;}
-  #score{position:absolute;left:16px;top:44px;color:#fff;font-size:18px;pointer-events:auto}
-  #timer{position:absolute;left:16px;top:70px;color:#fff;font-size:18px;pointer-events:auto}
+  #score{position:absolute;left:16px;top:44px;font-size:18px;pointer-events:auto}
+  #timer{position:absolute;left:16px;top:70px;font-size:18px;pointer-events:auto}
+  #gun{position:absolute;left:16px;top:96px;font-size:16px;opacity:.95;pointer-events:auto}
   #minimap{position:absolute;right:16px;top:14px;width:160px;height:110px;border:2px solid rgba(255,255,255,0.9);background:rgba(0,0,0,0.45);pointer-events:auto}
   #pauseBtn{position:absolute;left:50%;top:14px;transform:translateX(-50%);pointer-events:auto;background:#222;color:#fff;border:1px solid #444;border-radius:10px;padding:8px 14px;font-size:16px}
   #menu,#gameover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);color:white;z-index:40;font-size:18px;padding:20px;box-sizing:border-box}
@@ -36,31 +37,40 @@
   <div id="health-bar"><div id="health-fill"></div></div>
   <div id="score">Score: 0</div>
   <div id="timer"></div>
+  <div id="gun">Gun: Pistol</div>
   <canvas id="minimap"></canvas>
   <button id="pauseBtn">Pause</button>
 </div>
 
 <div id="menu">
   <div class="menu-panel">
-    <h1>Arena Shooter — V10.4</h1>
+    <h1>Arena Shooter — V10.5</h1>
     <div style="margin:10px 0">Left joystick = move · Right joystick = aim & shoot</div>
     <div style="margin:14px 0">
       <button class="big-btn" onclick="startGame('survival')">Start Survival</button>
       <button class="big-btn" onclick="startGame('time')">Start Time Attack</button>
     </div>
 
-    <div style="margin-top:10px">Power-up legend:</div>
+    <div style="margin-top:10px">Pickups:</div>
     <div class="legend">
-      <div class="legend-item"><div class="legend-emoji">⚡</div><div>Rapid Fire (orange)</div></div>
-      <div class="legend-item"><div class="legend-emoji">🛡</div><div>Shield (cyan)</div></div>
-      <div class="legend-item"><div class="legend-emoji">💖</div><div>Heal (green)</div></div>
-      <div class="legend-item"><div class="legend-emoji">✦</div><div>Double Points (magenta)</div></div>
-      <div class="legend-item"><div class="legend-emoji">🏃</div><div>Speed Boost (yellow)</div></div>
-      <div class="legend-item"><div class="legend-emoji">💥</div><div>Explosive (red)</div></div>
-      <div class="legend-item"><div class="legend-emoji">🔫</div><div>Spread (purple)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🔫</div><div>Pistol (default)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🟣</div><div>Shotgun</div></div>
+      <div class="legend-item"><div class="legend-emoji">🔵</div><div>Rifle</div></div>
+      <div class="legend-item"><div class="legend-emoji">🟥</div><div>Rocket</div></div>
     </div>
 
-    <div style="margin-top:14px;font-size:14px;color:#ddd">Tip: Aim with the right stick — the white arrow shows your shooting direction.</div>
+    <div style="margin-top:10px">Power-ups:</div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-emoji">⚡</div><div>Rapid Fire</div></div>
+      <div class="legend-item"><div class="legend-emoji">🛡</div><div>Shield</div></div>
+      <div class="legend-item"><div class="legend-emoji">💖</div><div>Heal</div></div>
+      <div class="legend-item"><div class="legend-emoji">✦</div><div>Double Points</div></div>
+      <div class="legend-item"><div class="legend-emoji">🏃</div><div>Speed</div></div>
+      <div class="legend-item"><div class="legend-emoji">💥</div><div>Explosive</div></div>
+      <div class="legend-item"><div class="legend-emoji">🔱</div><div>Spread Boost</div></div>
+    </div>
+
+    <div style="margin-top:14px;font-size:14px;color:#ddd">Bullets are blocked by obstacles — use cover!</div>
   </div>
 </div>
 
@@ -78,74 +88,56 @@
 <div class="js-visual" id="jsVisual"></div>
 
 <script>
-/* ======= Arena Shooter V10.4 — Single file =======
-   Fixes:
-   - Expose controls on window: startGame/restartGame/backToMenu (fixes “button does nothing”).
-   - Removed duplicate var errors; ensured main loop starts.
-   Additions:
-   - Pause button.
-   - Bullet–obstacle collisions with ricochets.
-   - Haptics (navigator.vibrate).
-   - Progressive difficulty ramp.
-*/
+/* ======= Arena Shooter V10.5 (Final) =======
+   Changes vs 10.4:
+   - Enemy projectiles (blocked by obstacles).
+   - Gun pickups (Pistol/Shotgun/Rifle/Rocket). Current gun shown in HUD.
+   - Bullets DO NOT pass through obstacles (no ricochet; they stop).
+   - Kept: pause button, haptics, minimap, power-ups, iPad joysticks, menu bindings.
+   ------------------------------------------------------------ */
 
-/* ---------- setup ---------- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 const minimapCanvas = document.getElementById('minimap');
 const mm = minimapCanvas.getContext('2d');
 const pauseBtn = document.getElementById('pauseBtn');
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  minimapCanvas.width = Math.min(180, Math.floor(window.innerWidth * 0.18));
-  minimapCanvas.height = Math.min(130, Math.floor(window.innerHeight * 0.12));
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  minimapCanvas.width = Math.min(180, Math.floor(innerWidth * 0.18));
+  minimapCanvas.height = Math.min(130, Math.floor(innerHeight * 0.12));
   leftStick.x = 110; leftStick.y = canvas.height - 110;
   rightStick.x = canvas.width - 110; rightStick.y = canvas.height - 110;
 }
-window.addEventListener('resize', resize);
+addEventListener('resize', resize);
 
 const arena = { width: 3000, height: 2000 };
 
-/* ---------- game state ---------- */
 let gameState = 'menu'; // menu, playing, paused, gameover
 let gameMode = 'survival';
 let timer = 90;
 let score = 0;
-let difficultyTime = 0; // seconds since game start; drives ramp
+let difficultyTime = 0;
 
-/* player */
-const player = {
-  x: arena.width / 2,
-  y: arena.height / 2,
-  r: 20,
-  color: '#4da6ff',
-  speed: 3.2,
-  health: 100,
-  flash: 0
-};
+const player = { x: arena.width/2, y: arena.height/2, r: 20, color:'#4da6ff', speed:3.2, health:100, flash:0 };
 
-/* bullets, enemies, obstacles, powerups */
-let bullets = [];
+let bullets = [];       // player bullets
+let enemyBullets = [];  // enemy bullets
 let enemies = [];
 let powerUps = [];
+let gunPickups = [];
 let obstacles = [];
 
-/* joysticks state */
-const leftStick = { x: 110, y: window.innerHeight - 110, r: 56, dx: 0, dy: 0, id: null };
-const rightStick = { x: window.innerWidth - 110, y: window.innerHeight - 110, r: 56, dx: 0, dy: 0, id: null, active: false, lastShot: 0 };
+const leftStick = { x:110, y:innerHeight-110, r:56, dx:0, dy:0, id:null };
+const rightStick = { x:innerWidth-110, y:innerHeight-110, r:56, dx:0, dy:0, id:null, active:false, lastShot:0 };
 
-/* power-up types */
 const powerUpTypes = ['rapid','shield','double','speed','heal','explosive','spread'];
 
-/* active buffs */
-let rapidFire = 0, doublePoints = 0, speedBoost = 0, explosive = false, spread = false;
+let rapidFire = 0, doublePoints = 0, speedBoost = 0, explosive = false, spreadBoost = false;
 
-/* knobs visualization */
 const jsVisual = document.getElementById('jsVisual');
 
-/* create obstacles */
 (function createObstacles(){
   const shapes = ['rect','circle','triangle'];
   for (let i=0;i<55;i++){
@@ -162,6 +154,28 @@ const jsVisual = document.getElementById('jsVisual');
   }
 })();
 
+/* ---------- Guns ---------- */
+const guns = {
+  pistol:  { name:'Pistol',  fireRate:300, bulletSpeed:10, damage:1, spreadCount:1, spreadAngle:0, radius:6, color:'#ffd43b', aoe:0 },
+  shotgun: { name:'Shotgun', fireRate:450, bulletSpeed:9,  damage:1, spreadCount:5, spreadAngle:0.28, radius:6, color:'#ffe08a', aoe:0 },
+  rifle:   { name:'Rifle',   fireRate:120, bulletSpeed:12, damage:1, spreadCount:1, spreadAngle:0, radius:5, color:'#b4d1ff', aoe:0 },
+  rocket:  { name:'Rocket',  fireRate:700, bulletSpeed:7.5,damage:2, spreadCount:1, spreadAngle:0, radius:7, color:'#ff6b6b', aoe:90 }
+};
+let currentGun = guns.pistol;
+
+function setGun(g){ currentGun = g; document.getElementById('gun').innerText = 'Gun: ' + g.name; vibrate(25); }
+function spawnGunPickup(){
+  const keys = Object.keys(guns);
+  const key = keys[Math.floor(Math.random()*keys.length)];
+  const type = key;
+  gunPickups.push({
+    x: Math.random()*(arena.width-80)+40,
+    y: Math.random()*(arena.height-80)+40,
+    r:16,
+    type
+  });
+}
+
 /* ---------- helpers ---------- */
 function vibrate(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(_){} }
 
@@ -170,7 +184,7 @@ function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
   const closestY = Math.max(ry, Math.min(cy, ry+rh));
   const dx = cx - closestX;
   const dy = cy - closestY;
-  return { hit: dx*dx + dy*dy < cr*cr, nx: (dx===0?0:Math.sign(dx)), ny: (dy===0?0:Math.sign(dy)) };
+  return dx*dx + dy*dy < cr*cr;
 }
 function circleCircleCollision(aX,aY,aR, bX,bY,bR){
   const d = Math.hypot(aX-bX, aY-bY);
@@ -178,6 +192,18 @@ function circleCircleCollision(aX,aY,aR, bX,bY,bR){
 }
 function circleTriangleCollision(cx,cy,cr, tx,ty,tr){
   return Math.abs(cx - tx) < (tr + cr) && Math.abs(cy - ty) < (tr + cr);
+}
+function bulletHitsObstacle(bx,by,br){
+  for (const ob of obstacles){
+    if (ob.shape==='rect'){
+      if (circleRectCollision(bx,by,br, ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h)) return true;
+    } else if (ob.shape==='circle'){
+      if (circleCircleCollision(bx,by,br, ob.x,ob.y,ob.r)) return true;
+    } else {
+      if (circleTriangleCollision(bx,by,br, ob.x,ob.y,ob.r)) return true;
+    }
+  }
+  return false;
 }
 function clampToArena(ent){
   const rr = ent.r || 0;
@@ -188,8 +214,8 @@ function attemptMove(entity, nextX, nextY){
   let canX = true, canY = true;
   for (const ob of obstacles){
     if (ob.shape === 'rect'){
-      if (circleRectCollision(nextX, entity.y, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h).hit) canX = false;
-      if (circleRectCollision(entity.x, nextY, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h).hit) canY = false;
+      if (circleRectCollision(nextX, entity.y, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canX = false;
+      if (circleRectCollision(entity.x, nextY, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canY = false;
     } else if (ob.shape === 'circle'){
       if (circleCircleCollision(nextX, entity.y, entity.r, ob.x, ob.y, ob.r)) canX = false;
       if (circleCircleCollision(entity.x, nextY, entity.r, ob.x, ob.y, ob.r)) canY = false;
@@ -217,26 +243,30 @@ function spawnEnemy(nearPlayerBias = 1.0){
   x = Math.max(40, Math.min(arena.width-40, x));
   y = Math.max(40, Math.min(arena.height-40, y));
 
-  // difficulty ramp: more slows over time, slightly stronger
   const t = (Math.random() < (0.55 + Math.min(0.25, difficultyTime/1800))) ? 'fast' : 'slow';
-  const bonusHP = Math.floor(difficultyTime/60) % 5; // +HP per minute up to +4 then cycle
+  const bonusHP = Math.floor(difficultyTime/60) % 5;
   const health = t === 'fast' ? 1 : 6 + Math.floor(Math.random()*4) + bonusHP;
   const dmg = t === 'fast' ? 4 + Math.floor(difficultyTime/120) : 12 + Math.floor(difficultyTime/90);
-  enemies.push({ x,y, type:t, r: t==='fast'?10:30, color: t==='fast'?'#ff6b6b':'#9e2a2b', health, maxHealth:health, lastHit:0, damage:dmg });
+  // enemy shooting params
+  const fireRate = (t==='fast') ? 900 : 1200; // ms
+  const bulletSpeed = (t==='fast') ? 8.5 : 7;
+  enemies.push({ x,y, type:t, r: t==='fast'?10:30, color: t==='fast'?'#ff6b6b':'#9e2a2b',
+                 health, maxHealth:health, lastHit:0, damage:dmg,
+                 lastShot:0, fireRate, bulletSpeed, range: 800 });
 }
 function spawnPowerUp(){
   const type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
   powerUps.push({ x: Math.random()*(arena.width-80)+40, y: Math.random()*(arena.height-80)+40, r:16, type, duration: 800 });
 }
 function startWaves(){
-  // initial small spawn
   for (let i=0;i<4;i++) spawnEnemy(0.8);
   if (waveTimerId) clearInterval(waveTimerId);
   waveTimerId = setInterval(()=>{
     if (gameState==='playing'){
-      // ramp wave size by time: base 4 + one extra every ~25s, capped a bit
       const extra = Math.min(6, Math.floor(difficultyTime/25));
       for(let i=0;i<4+extra;i++) spawnEnemy(1.2);
+      // occasionally drop a gun
+      if (Math.random() < 0.6) spawnGunPickup();
     }
   }, 4500);
 }
@@ -271,12 +301,10 @@ canvas.addEventListener('touchend', (ev)=>{
     if (t.identifier === rightStick.id){ rightStick.id = null; rightStick.dx = 0; rightStick.dy = 0; rightStick.active = false; }
   }
 });
-
-/* Mouse (desktop testing) */
 let mouseDownLeft=false, mouseDownRight=false;
 canvas.addEventListener('mousedown', (e)=>{
   const x=e.clientX, y=e.clientY;
-  if (x < window.innerWidth*0.6){ mouseDownLeft = true; leftStick.dx = x - leftStick.x; leftStick.dy = y - leftStick.y; }
+  if (x < innerWidth*0.6){ mouseDownLeft = true; leftStick.dx = x - leftStick.x; leftStick.dy = y - leftStick.y; }
   else { mouseDownRight = true; rightStick.active = true; rightStick.dx = x - rightStick.x; rightStick.dy = y - rightStick.y; }
 });
 canvas.addEventListener('mousemove', (e)=>{
@@ -291,14 +319,41 @@ canvas.addEventListener('mousemove', (e)=>{
     if(d>rightStick.r){rightStick.dx=rightStick.dx/d*rightStick.r;rightStick.dy=rightStick.dy/d*rightStick.r;}
   }
 });
-window.addEventListener('mouseup', ()=>{
+addEventListener('mouseup', ()=>{
   mouseDownLeft=false; mouseDownRight=false;
-  leftStick.dx=0; leftStick.dy=0;
-  rightStick.dx=0; rightStick.dy=0; rightStick.active=false;
+  leftStick.dx=0; leftStick.dy=0; rightStick.dx=0; rightStick.dy=0; rightStick.active=false;
 });
 
 /* ---------- core update ---------- */
 let lastFrame = performance.now();
+function firePlayer(angle){
+  const now = Date.now();
+  const fireBoost = (rapidFire>0) ? 0.6 : 1;
+  const fireRate = currentGun.fireRate * fireBoost;
+  if (rightStick.lastShot && now - rightStick.lastShot < fireRate) return;
+  rightStick.lastShot = now;
+
+  const spreadN = currentGun.spreadCount + (spreadBoost?2:0);
+  const total = spreadN;
+  const base = angle;
+  const spread = currentGun.spreadAngle;
+  for (let i=0;i<total;i++){
+    const a = base + (total>1 ? (i-(total-1)/2)*spread : 0);
+    const dx = Math.cos(a)*currentGun.bulletSpeed;
+    const dy = Math.sin(a)*currentGun.bulletSpeed;
+    bullets.push({
+      x: player.x + Math.cos(a)*player.r,
+      y: player.y + Math.sin(a)*player.r,
+      dx, dy,
+      r: currentGun.radius,
+      life: 260,
+      color: currentGun.color,
+      damage: currentGun.damage,
+      aoe: currentGun.aoe
+    });
+  }
+}
+
 function update(dt){
   if (gameState !== 'playing') return;
 
@@ -314,84 +369,54 @@ function update(dt){
     attemptMove(player, nx, ny);
   }
 
-  // shooting
+  // shooting by player
   if (rightStick.active){
     const rdx = rightStick.dx, rdy = rightStick.dy;
     const rmag = Math.hypot(rdx,rdy);
     if (rmag > 6){
       const angle = Math.atan2(rdy, rdx);
-      const now = Date.now();
-      const fireRate = (rapidFire>0) ? 100 : 300;
-      if (!rightStick.lastShot || now - rightStick.lastShot > fireRate){
-        if (spread){
-          for (let aOff of [-0.18,0,0.18]){
-            const ax = Math.cos(angle + aOff) * 9;
-            const ay = Math.sin(angle + aOff) * 9;
-            bullets.push({x:player.x + Math.cos(angle+ aOff)*player.r, y:player.y + Math.sin(angle+ aOff)*player.r, dx:ax, dy:ay, r:6, life:220, color:'#ffd43b', explosive:false, bounces:2});
-          }
-        } else {
-          bullets.push({x:player.x + Math.cos(angle)*player.r, y:player.y + Math.sin(angle)*player.r, dx:Math.cos(angle)*10, dy:Math.sin(angle)*10, r:6, life:220, color:'#ffd43b', explosive:explosive, bounces:2});
-        }
-        rightStick.lastShot = now;
-      }
+      firePlayer(angle);
     }
   }
 
-  // bullets (movement, ricochet, hits)
+  // --- player bullets ---
   for (let i = bullets.length-1; i>=0; i--){
     const b = bullets[i];
-    b.x += b.dx;
-    b.y += b.dy;
+    const nx = b.x + b.dx;
+    const ny = b.y + b.dy;
+
+    // check obstacle FIRST; if will hit, stop bullet there
+    if (bulletHitsObstacle(nx, ny, b.r)){
+      // AOE if rocket
+      if (b.aoe>0){
+        for (let j=enemies.length-1;j>=0;j--){
+          const e = enemies[j];
+          if (Math.hypot(e.x - b.x, e.y - b.y) <= b.aoe){
+            e.health -= 2;
+            if (e.health <= 0){ score += (doublePoints>0)?2:1; enemies.splice(j,1); }
+          }
+        }
+      }
+      bullets.splice(i,1);
+      continue;
+    }
+
+    b.x = nx; b.y = ny;
     b.life -= dt;
-
-    // arena bounds (ricochet off walls)
-    if (b.x < b.r || b.x > arena.width - b.r){
-      if (b.bounces>0){ b.dx *= -1; b.bounces--; vibrate(10); }
-      else { bullets.splice(i,1); continue; }
-      b.x = Math.max(b.r, Math.min(arena.width - b.r, b.x));
-    }
-    if (b.y < b.r || b.y > arena.height - b.r){
-      if (b.bounces>0){ b.dy *= -1; b.bounces--; vibrate(10); }
-      else { bullets.splice(i,1); continue; }
-      b.y = Math.max(b.r, Math.min(arena.height - b.r, b.y));
+    if (b.x < 0 || b.x > arena.width || b.y < 0 || b.y > arena.height || b.life <= 0){
+      bullets.splice(i,1); continue;
     }
 
-    // obstacle collisions -> reflect
-    let hitObstacle = false;
-    for (const ob of obstacles){
-      if (ob.shape === 'rect'){
-        const rx=ob.x - ob.w/2, ry=ob.y - ob.h/2;
-        const {hit} = circleRectCollision(b.x, b.y, b.r, rx, ry, ob.w, ob.h);
-        if (hit){ hitObstacle = true; }
-      } else if (ob.shape === 'circle'){
-        if (circleCircleCollision(b.x, b.y, b.r, ob.x, ob.y, ob.r)) hitObstacle = true;
-      } else {
-        if (circleTriangleCollision(b.x, b.y, b.r, ob.x, ob.y, ob.r)) hitObstacle = true;
-      }
-      if (hitObstacle) break;
-    }
-    if (hitObstacle){
-      if (b.bounces>0){
-        // simple reflect: flip the dominant axis of travel
-        if (Math.abs(b.dx) > Math.abs(b.dy)) b.dx *= -1; else b.dy *= -1;
-        b.bounces--; vibrate(8);
-      } else {
-        bullets.splice(i,1); continue;
-      }
-    }
-
-    if (b.life <= 0){ bullets.splice(i,1); continue; }
-
-    // bullet hits enemies
+    // hit enemy
     for (let j = enemies.length-1; j>=0; j--){
       const e = enemies[j];
       if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + b.r){
-        e.health -= 1;
-        if (b.explosive){
+        e.health -= b.damage;
+        if (b.aoe>0){
           for (let k=enemies.length-1;k>=0;k--){
             const e2 = enemies[k];
             const d2 = Math.hypot(e2.x - b.x, e2.y - b.y);
-            if (d2 < 80) e2.health -= 1;
+            if (d2 < b.aoe) e2.health -= b.damage;
           }
         }
         bullets.splice(i,1);
@@ -405,29 +430,58 @@ function update(dt){
     }
   }
 
-  // enemies update
+  // --- enemy AI + shooting ---
   const now = Date.now();
   for (const e of enemies){
+    // move toward player
     const ang = Math.atan2(player.y - e.y, player.x - e.x);
-    // speed ramp: slow enemies also speed up slightly over time
     const base = (e.type==='fast')?3.2:1.3;
     const spd = base + Math.min(1.5, difficultyTime/1200);
-    const nx = e.x + Math.cos(ang) * spd;
-    const ny = e.y + Math.sin(ang) * spd;
-    attemptMove(e, nx, ny);
+    const ex = e.x + Math.cos(ang) * spd;
+    const ey = e.y + Math.sin(ang) * spd;
+    attemptMove(e, ex, ey);
 
-    const dist = Math.hypot(player.x - e.x, player.y - e.y);
-    if (dist < player.r + e.r + 2){
+    // melee contact
+    if (Math.hypot(player.x - e.x, player.y - e.y) < player.r + e.r + 2){
       if (!e.lastHit || now - e.lastHit > 600){
-        player.health -= e.damage;
-        player.flash = 10;
-        e.lastHit = now;
-        vibrate(30);
-        if (player.health <= 0){
-          player.health = 0;
-          endGame();
-        }
+        player.health -= e.damage; e.lastHit = now; player.flash = 10; vibrate(30);
+        if (player.health <= 0){ player.health = 0; endGame(); }
       }
+    }
+
+    // ranged attack
+    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+    if (dist < e.range && (!e.lastShot || now - e.lastShot >= e.fireRate)){
+      // shoot toward player
+      const a = Math.atan2(player.y - e.y, player.x - e.x);
+      const dx = Math.cos(a)*e.bulletSpeed, dy = Math.sin(a)*e.bulletSpeed;
+      enemyBullets.push({ x:e.x + Math.cos(a)*e.r, y:e.y + Math.sin(a)*e.r, dx, dy, r:5, life:260, color:'#ff9aa2', damage:8 });
+      e.lastShot = now;
+    }
+  }
+
+  // --- enemy bullets ---
+  for (let i = enemyBullets.length-1; i>=0; i--){
+    const b = enemyBullets[i];
+    const nx = b.x + b.dx, ny = b.y + b.dy;
+
+    // obstacle stops enemy bullet too
+    if (bulletHitsObstacle(nx, ny, b.r)){
+      enemyBullets.splice(i,1); continue;
+    }
+
+    b.x = nx; b.y = ny;
+    b.life -= dt;
+    if (b.x < 0 || b.x > arena.width || b.y < 0 || b.y > arena.height || b.life <= 0){
+      enemyBullets.splice(i,1); continue;
+    }
+
+    // hit player
+    if (Math.hypot(player.x - b.x, player.y - b.y) < player.r + b.r){
+      player.health -= b.damage;
+      player.flash = 10; vibrate(25);
+      enemyBullets.splice(i,1);
+      if (player.health <= 0){ player.health = 0; endGame(); }
     }
   }
 
@@ -436,8 +490,15 @@ function update(dt){
     const p = powerUps[i];
     if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r){
       applyPowerUp(p.type);
-      powerUps.splice(i,1);
-      vibrate(18);
+      powerUps.splice(i,1); vibrate(18);
+    }
+  }
+
+  // gun pickups
+  for (let i=gunPickups.length-1;i>=0;i--){
+    const g = gunPickups[i];
+    if (Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r){
+      setGun(guns[g.type]); gunPickups.splice(i,1);
     }
   }
 
@@ -451,7 +512,6 @@ function update(dt){
   }
 }
 
-/* apply powerup */
 function applyPowerUp(type){
   switch(type){
     case 'rapid': rapidFire = 300; break;
@@ -460,7 +520,7 @@ function applyPowerUp(type){
     case 'speed': speedBoost = 300; break;
     case 'heal': player.health = Math.min(100, player.health + 30); break;
     case 'explosive': explosive = true; setTimeout(()=>explosive=false,5000); break;
-    case 'spread': spread = true; setTimeout(()=>spread=false,5000); break;
+    case 'spread': spreadBoost = true; setTimeout(()=>spreadBoost=false,5000); break;
   }
 }
 
@@ -487,12 +547,21 @@ function drawScene(){
     }
   }
 
-  // bullets
+  // bullets (player)
   for (const b of bullets){
     ctx.fillStyle = b.color;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,215,0,0.2)';
-    ctx.beginPath(); ctx.arc(b.x - b.dx*2, b.y - b.dy*2, b.r*0.9, 0, Math.PI*2); ctx.fill();
+    if (b.aoe>0){
+      ctx.globalAlpha = 0.08;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI*2); ctx.fillStyle = '#ff6b6b'; ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // bullets (enemy)
+  for (const b of enemyBullets){
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
   }
 
   // enemies
@@ -517,8 +586,18 @@ function drawScene(){
     let emoji = '⚡';
     if (p.type==='shield') emoji='🛡'; else if (p.type==='double') emoji='✦';
     else if (p.type==='speed') emoji='🏃'; else if (p.type==='heal') emoji='💖';
-    else if (p.type==='explosive') emoji='💥'; else if (p.type==='spread') emoji='🔫';
+    else if (p.type==='explosive') emoji='💥'; else if (p.type==='spread') emoji='🔱';
     ctx.fillText(emoji, p.x - 8, p.y + 8);
+  }
+
+  // gun pickups (simple colored dots + label)
+  for (const g of gunPickups){
+    let c = '#fff', label='🔫';
+    if (g.type==='shotgun'){ c='#b388ff'; label='🟣'; }
+    else if (g.type==='rifle'){ c='#6ab4ff'; label='🔵'; }
+    else if (g.type==='rocket'){ c='#ff6b6b'; label='🟥'; }
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.fillText(label, g.x-7, g.y+7);
   }
 
   // player
@@ -526,7 +605,7 @@ function drawScene(){
   if (player.flash>0) player.flash--;
   ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
 
-  // shooting arrow (correct local-space drawing)
+  // aim arrow
   if (rightStick.active){
     const rx = rightStick.dx, ry = rightStick.dy;
     const mag = Math.hypot(rx,ry);
@@ -564,18 +643,19 @@ function drawMinimap(){
   for (const ob of obstacles){
     mm.fillRect(Math.floor(ob.x * sx) - 1, Math.floor(ob.y * sy) - 1, 3, 3);
   }
+  mm.fillStyle = '#ffd54f';
   for (const p of powerUps){
-    mm.fillStyle = '#ffd54f';
     mm.fillRect(Math.floor(p.x * sx)-1, Math.floor(p.y * sy)-1, 3, 3);
+  }
+  mm.fillStyle = '#a0e0ff';
+  for (const g of gunPickups){
+    mm.fillRect(Math.floor(g.x*sx)-1, Math.floor(g.y*sy)-1, 3,3);
   }
   for (const e of enemies){
     mm.fillStyle = e.type === 'fast' ? '#ff6b6b' : '#8b1f2b';
     const ex = Math.floor(e.x * sx), ey = Math.floor(e.y * sy);
-    if (e.type === 'fast'){
-      mm.beginPath(); mm.arc(ex, ey, 2, 0, Math.PI*2); mm.fill();
-    } else {
-      mm.beginPath(); mm.moveTo(ex, ey-3); mm.lineTo(ex-3, ey+3); mm.lineTo(ex+3, ey+3); mm.closePath(); mm.fill();
-    }
+    if (e.type === 'fast'){ mm.beginPath(); mm.arc(ex, ey, 2, 0, Math.PI*2); mm.fill(); }
+    else { mm.beginPath(); mm.moveTo(ex, ey-3); mm.lineTo(ex-3, ey+3); mm.lineTo(ex+3, ey+3); mm.closePath(); mm.fill(); }
   }
   mm.fillStyle = '#4da6ff';
   mm.fillRect(Math.floor(player.x * sx)-2, Math.floor(player.y * sy)-2, 4, 4);
@@ -591,30 +671,30 @@ function mainLoop(ts){
     update(dt);
     drawScene();
     drawMinimap();
-  } else if (gameState === 'paused' || gameState === 'menu' || gameState === 'gameover'){
-    // still refresh HUD (e.g., pause state) if needed
   }
-
   if (running) requestAnimationFrame(mainLoop);
 }
 
-/* ---------- game control (exposed on window) ---------- */
+/* ---------- control (exposed) ---------- */
 function _startGame(mode){
   gameMode = mode || 'survival';
   timer = (gameMode==='time') ? 60 : 9999;
   score = 0;
-  bullets = []; enemies = []; powerUps = [];
-  player.x = arena.width / 2; player.y = arena.height / 2; player.health = 100; player.flash = 0;
-  rapidFire = doublePoints = speedBoost = 0; explosive = false; spread = false;
+  bullets = []; enemyBullets = []; enemies = []; powerUps = []; gunPickups = [];
+  player.x = arena.width/2; player.y = arena.height/2; player.health=100; player.flash=0;
+  rapidFire = doublePoints = speedBoost = 0; explosive=false; spreadBoost=false;
   difficultyTime = 0;
+  setGun(guns.pistol);
+
   document.getElementById('menu').style.display = 'none';
   document.getElementById('gameover').style.display = 'none';
   gameState = 'playing';
   startWaves();
   for (let i=0;i<3;i++) spawnPowerUp();
+  for (let i=0;i<2;i++) spawnGunPickup();
   vibrate(20);
 }
-function _endGame(){
+function endGame(){
   gameState = 'gameover';
   document.getElementById('finalScore').innerText = 'Score: ' + score;
   document.getElementById('gameover').style.display = 'flex';
@@ -633,19 +713,14 @@ function _togglePause(){
   if (gameState === 'playing'){ gameState = 'paused'; pauseBtn.textContent = 'Resume'; }
   else if (gameState === 'paused'){ gameState = 'playing'; pauseBtn.textContent = 'Pause'; }
 }
-
-/* bind to window so inline onclick works in all browsers */
+/* bindings for buttons */
 window.startGame = _startGame;
 window.backToMenu = _backToMenu;
 window.restartGame = _restartGame;
 
-/* internal calls */
-const endGame = _endGame;
-
-/* pause button */
 pauseBtn.addEventListener('click', _togglePause);
 
-/* ---------- initial setup ---------- */
+/* ---------- boot ---------- */
 resize();
 requestAnimationFrame(mainLoop);
 
@@ -673,19 +748,20 @@ setInterval(updateJSVisual, 80);
 /* periodic spawns */
 setInterval(()=>{
   if (gameState==='playing' && Math.random() < 0.6) spawnPowerUp();
-}, 7000);
+  if (gameState==='playing' && Math.random() < 0.4) spawnGunPickup();
+}, 8000);
 
 /* keep canvas focused for touch */
 canvas.addEventListener('touchstart', ()=>{ canvas.focus(); }, {passive:true});
 
 /* debug keys */
-window.addEventListener('keydown', (e)=>{
+addEventListener('keydown', (e)=>{
   if (e.key === 'm') { if (gameState === 'menu') _startGame('survival'); else _backToMenu(); }
   if (e.key === 'r') _restartGame();
   if (e.key === 'p') _togglePause();
 });
 
-console.log('Arena Shooter V10.4 loaded — ready.');
+console.log('Arena Shooter V10.5 — bullets blocked by obstacles, enemies shoot back, gun pickups enabled.');
 </script>
 </body>
 </html>
