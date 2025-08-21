@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arena Shooter V9.1</title>
+<title>Arena Shooter V10</title>
 <style>
 html,body{margin:0;padding:0;overflow:hidden;background:#111;touch-action:none;}
 canvas{display:block;background:#111;}
@@ -30,7 +30,7 @@ canvas{display:block;background:#111;}
 <canvas id="minimap"></canvas>
 
 <div id="menu-screen">
-  <div>ARENA SHOOTER V9.1</div>
+  <div>ARENA SHOOTER V10</div>
   <button class="menu-button" onclick="startGame('survival')">Survival Mode</button>
   <button class="menu-button" onclick="startGame('time')">Time Attack Mode</button>
   <div class="powerup-legend">
@@ -63,7 +63,7 @@ minimap.width=150; minimap.height=100;
 
 const arena={width:3000,height:2000};
 let gameMode='survival',timer=60,gameState='menu';
-let player={x:arena.width/2,y:arena.height/2,r:20,color:'blue',speed:3,health:100};
+let player={x:arena.width/2,y:arena.height/2,r:20,color:'blue',speed:3,health:100,flash:0};
 let bullets=[],enemies=[],powerUps=[],obstacles=[],score=0;
 let leftJoystick={x:100,y:canvas.height-100,r:50,dx:0,dy:0,touchId:null};
 let rightJoystick={x:canvas.width-100,y:canvas.height-100,r:50,dx:0,dy:0,touchId:null,active:false,lastShot:0};
@@ -129,7 +129,7 @@ function startGame(mode){
     score = 0;
     player.health = 100;
     document.getElementById('menu-screen').style.display = 'none';
-    spawnEnemy();
+    spawnEnemyWave();
     spawnPowerUp();
 }
 function endGame(){gameState='gameover';document.getElementById('gameover-screen').style.display='flex';document.getElementById('final-score').innerText='Score: '+score;}
@@ -137,20 +137,26 @@ function backToMenu(){gameState='menu';document.getElementById('menu-screen').st
 function restartGame(){document.getElementById('gameover-screen').style.display='none';startGame(gameMode);}
 
 // Spawn functions
+function spawnEnemyWave(){
+  for(let i=0;i<5;i++){spawnEnemy();}
+  setTimeout(()=>{if(gameState==='playing') spawnEnemyWave();},5000);
+}
 function spawnEnemy(){
   const edge=Math.floor(Math.random()*4); let x,y; const margin=200;
   if(edge===0){x=player.x+Math.random()*margin+50;y=player.y+Math.random()*arena.height/2;}
   else if(edge===1){x=player.x-Math.random()*margin-50;y=player.y+Math.random()*arena.height/2;}
   else if(edge===2){x=player.x+Math.random()*arena.width/2;y=player.y+Math.random()*margin+50;}
   else{x=player.x+Math.random()*arena.width/2;y=player.y-Math.random()*margin-50;}
-  let type=Math.random()<0.5?'fast':'slow'; let health=type==='fast'?1:5;
-  enemies.push({x,y,type,r:type==='fast'?10:30,color:type==='fast'?'red':'darkred',health,maxHealth:health});
+  let type=Math.random()<0.5?'fast':'slow'; 
+  let health=type==='fast'?1:5;
+  enemies.push({x,y,type,r:type==='fast'?10:30,color:type==='fast'?'red':'darkred',health,maxHealth:health,lastHit:0,damage:type==='fast'?5:12});
 }
 function spawnPowerUp(){const type=powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];powerUps.push({x:Math.random()*arena.width,y:Math.random()*arena.height,r:15,type,duration:500});}
 
 // Update loop
 function update(){
   if(gameState!=='playing') return;
+  // Movement
   let dist=Math.hypot(leftJoystick.dx,leftJoystick.dy);
   if(dist>5){let speed=player.speed;if(speedBoost>0)speed*=1.5;let nx=player.x+leftJoystick.dx/dist*speed,ny=player.y+leftJoystick.dy/dist*speed;
     let canMoveX=true,canMoveY=true;
@@ -169,14 +175,35 @@ function update(){
       rightJoystick.lastShot=Date.now();
     }
   }
-  // Bullet-enemy collisions
+  // Bullets
   bullets.forEach((b,bi)=>{b.x+=b.dx;b.y+=b.dy;for(let ei=enemies.length-1;ei>=0;ei--){let e=enemies[ei];if(Math.hypot(e.x-b.x,e.y-b.y)<e.r+b.r){e.health--;bullets.splice(bi,1);if(e.health<=0){enemies.splice(ei,1);score+=doublePoints>0?2:1;}break;}}});
-  // Enemy movement
-  enemies.forEach(e=>{let angle=Math.atan2(player.y-e.y,player.x-e.x);let speed=e.type==='fast'?3:1.5;let nx=e.x+Math.cos(angle)*speed;let ny=e.y+Math.sin(angle)*speed;let canMove=true;for(const ob of obstacles){if(ob.shape==='rect' && circleRectCollision(nx,ny,e.r,ob.x,ob.y,ob.w,ob.h)) canMove=false;}if(canMove){e.x=nx;e.y=ny;}if(Math.hypot(player.x-e.x,player.y-e.y)<player.r+e.r){player.health-=e.type==='fast'?5:10;if(player.health<=0) endGame();}});
+  // Enemy movement & attacks
+  const now=Date.now();
+  enemies.forEach(e=>{
+    // move
+    let angle=Math.atan2(player.y-e.y,player.x-e.x);
+    let speed=e.type==='fast'?3:1.5;
+    let nx=e.x+Math.cos(angle)*speed; let ny=e.y+Math.sin(angle)*speed;
+    let canMove=true;for(const ob of obstacles){if(ob.shape==='rect' && circleRectCollision(nx,ny,e.r,ob.x,ob.y,ob.w,ob.h)) canMove=false;}
+    if(canMove){e.x=nx;e.y=ny;}
+    // attack
+    if(Math.hypot(player.x-e.x,player.y-e.y)<player.r+e.r){
+      if(!e.lastHit || now-e.lastHit>500){player.health-=e.damage;player.flash=10;e.lastHit=now;if(player.health<=0) endGame();}
+    }
+  });
   // Power-ups
-  for(let i=powerUps.length-1;i>=0;i--){let p=powerUps[i];if(Math.hypot(player.x-p.x,player.y-p.y)<player.r+p.r){if(p.type==='rapid') rapidFire=300;if(p.type==='shield') player.health=Math.min(player.health+50,100);if(p.type==='double') doublePoints=300;if(p.type==='speed') speedBoost=300;if(p.type==='heal') player.health=Math.min(player.health+30,100);if(p.type==='explosive') explosive=true; setTimeout(()=>explosive=false,5000);powerUps.splice(i,1);}}
+  for(let i=powerUps.length-1;i>=0;i--){let p=powerUps[i];if(Math.hypot(player.x-p.x,player.y-p.y)<player.r+p.r){
+    if(p.type==='rapid') rapidFire=300;
+    if(p.type==='shield') player.health=Math.min(player.health+50,100);
+    if(p.type==='double') doublePoints=300;
+    if(p.type==='speed') speedBoost=300;
+    if(p.type==='heal') player.health=Math.min(player.health+30,100);
+    if(p.type==='explosive') explosive=true; setTimeout(()=>explosive=false,5000);
+    powerUps.splice(i,1);}
+  }
   if(rapidFire>0) rapidFire--; if(doublePoints>0) doublePoints--; if(speedBoost>0) speedBoost--;
   if(gameMode==='time'){timer-=1/60;if(timer<=0) endGame();}
+  if(player.flash>0) player.flash--;
 }
 
 // Draw
@@ -186,11 +213,16 @@ function draw(){
   let camX=Math.min(Math.max(player.x-canvas.width/2,0),arena.width-canvas.width);
   let camY=Math.min(Math.max(player.y-canvas.height/2,0),arena.height-canvas.height);
   ctx.save(); ctx.translate(-camX,-camY);
+  // Obstacles
   obstacles.forEach(o=>{ctx.fillStyle='gray';if(o.shape==='rect') ctx.fillRect(o.x,o.y,o.w,o.h);else if(o.shape==='circle'){ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();}else{ctx.beginPath();ctx.moveTo(o.x,o.y-o.r);ctx.lineTo(o.x-o.r,o.y+o.r);ctx.lineTo(o.x+o.r,o.y+o.r);ctx.closePath();ctx.fill();}});
-  ctx.fillStyle='blue'; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
+  // Player
+  ctx.fillStyle=player.flash>0?'red':'blue'; ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
   if(rightJoystick.active){let angle=Math.atan2(rightJoystick.dy,rightJoystick.dx);ctx.save(); ctx.translate(player.x,player.y); ctx.rotate(angle);ctx.fillStyle='white'; ctx.beginPath(); ctx.moveTo(0,-player.r-10); ctx.lineTo(-5,-player.r-20); ctx.lineTo(5,-player.r-20); ctx.closePath(); ctx.fill(); ctx.restore();}
+  // Bullets
   bullets.forEach(b=>{ctx.fillStyle=b.color;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();});
+  // Enemies
   enemies.forEach(e=>{ctx.fillStyle=e.color;if(e.type==='fast'){ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();}else{ctx.beginPath();ctx.moveTo(e.x,e.y-e.r);ctx.lineTo(e.x-e.r,e.y+e.r);ctx.lineTo(e.x+e.r,e.y+e.r);ctx.closePath();ctx.fill(); ctx.fillStyle='limegreen'; ctx.fillRect(e.x-e.r,e.y-e.r-10,(e.health/e.maxHealth)*2*e.r,5); ctx.strokeStyle='white';ctx.strokeRect(e.x-e.r,e.y-e.r-10,2*e.r,5);}});
+  // Power-ups
   powerUps.forEach(p=>{ctx.font='20px Arial';ctx.textAlign='center';ctx.textBaseline='middle';let emoji=p.type==='rapid'?'⚡':p.type==='shield'?'🛡':p.type==='double'?'✦':p.type==='speed'?'🏃':p.type==='heal'?'🛡':p.type==='explosive'?'💥':'🔫';ctx.fillText(emoji,p.x,p.y);});
   ctx.restore();
   document.getElementById('health-fill').style.width=player.health*2+'px';
