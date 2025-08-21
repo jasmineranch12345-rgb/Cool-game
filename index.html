@@ -208,3 +208,214 @@ window.addEventListener('resize',()=>{canvas.width=window.innerWidth; canvas.hei
 </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arena Shooter Enhanced V2</title>
+<style>
+  html, body { margin:0; padding:0; overflow:hidden; background:#111; touch-action: none; }
+  canvas { display:block; background:#111; }
+  #health-bar { position:absolute; top:20px; left:20px; width:200px; height:20px; border:2px solid white; }
+  #health-fill { width:100%; height:100%; background:limegreen; }
+  #score-display { position:absolute; top:50px; left:20px; color:white; font-size:24px; }
+</style>
+</head>
+<body>
+<div id="health-bar"><div id="health-fill"></div></div>
+<div id="score-display">Score: 0</div>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let player = { x: canvas.width/2, y: canvas.height/2, r: 20, color:'blue', speed:3, health:100 };
+let bullets = [];
+let enemies = [];
+let powerUps = [];
+let score = 0;
+let gameOver = false;
+
+let leftJoystick = { x:100, y:canvas.height-100, r:50, dx:0, dy:0, touchId:null };
+let rightJoystick = { x:canvas.width-100, y:canvas.height-100, r:50, dx:0, dy:0, touchId:null, active:false };
+
+const powerUpTypes = ['rapid','shield','double','speed','heal','explosive'];
+
+canvas.addEventListener('touchstart', e=>{
+  for(const t of e.changedTouches){
+    let dxL = t.clientX-leftJoystick.x, dyL = t.clientY-leftJoystick.y;
+    let dxR = t.clientX-rightJoystick.x, dyR = t.clientY-rightJoystick.y;
+    if(Math.hypot(dxL,dyL)<leftJoystick.r) leftJoystick.touchId = t.identifier;
+    if(Math.hypot(dxR,dyR)<rightJoystick.r) { rightJoystick.touchId=t.identifier; rightJoystick.active=true; }
+  }
+});
+
+canvas.addEventListener('touchmove', e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===leftJoystick.touchId){
+      leftJoystick.dx = t.clientX-leftJoystick.x;
+      leftJoystick.dy = t.clientY-leftJoystick.y;
+      let dist = Math.hypot(leftJoystick.dx,leftJoystick.dy);
+      if(dist>leftJoystick.r){ leftJoystick.dx=leftJoystick.dx/dist*leftJoystick.r; leftJoystick.dy=leftJoystick.dy/dist*leftJoystick.r; }
+    }
+    if(t.identifier===rightJoystick.touchId){
+      rightJoystick.dx = t.clientX-rightJoystick.x;
+      rightJoystick.dy = t.clientY-rightJoystick.y;
+      let dist = Math.hypot(rightJoystick.dx,rightJoystick.dy);
+      if(dist>rightJoystick.r){ rightJoystick.dx=rightJoystick.dx/dist*rightJoystick.r; rightJoystick.dy=rightJoystick.dy/dist*rightJoystick.r; }
+    }
+  }
+});
+
+canvas.addEventListener('touchend', e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===leftJoystick.touchId){ leftJoystick.touchId=null; leftJoystick.dx=0; leftJoystick.dy=0; }
+    if(t.identifier===rightJoystick.touchId){ rightJoystick.touchId=null; rightJoystick.dx=0; rightJoystick.dy=0; rightJoystick.active=false; }
+  }
+});
+
+// Enemies
+function spawnEnemy(){
+  const edge = Math.floor(Math.random()*4);
+  let x, y;
+  if(edge===0){ x=0; y=Math.random()*canvas.height; }
+  else if(edge===1){ x=canvas.width; y=Math.random()*canvas.height; }
+  else if(edge===2){ x=Math.random()*canvas.width; y=0; }
+  else{ x=Math.random()*canvas.width; y=canvas.height; }
+  let type = Math.random()<0.5?'fast':'strong';
+  enemies.push({x,y,r:type==='fast'?10:25,color:type==='fast'?'red':'darkred',type});
+}
+
+function spawnPowerUp(){
+  const type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
+  powerUps.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, r:15, type, duration:500});
+}
+
+let rapidFire=0, doublePoints=0, speedBoost=0, explosive=false;
+
+// Update
+function update(){
+  if(gameOver) return;
+  let dist = Math.hypot(leftJoystick.dx,leftJoystick.dy);
+  if(dist>5){
+    let speed = player.speed;
+    if(speedBoost>0) speed*=1.5;
+    player.x += leftJoystick.dx/dist*speed;
+    player.y += leftJoystick.dy/dist*speed;
+  }
+
+  // Shooting
+  if(rightJoystick.active){
+    let angle = Math.atan2(rightJoystick.dy,rightJoystick.dx);
+    if(!rightJoystick.lastShot || Date.now()-rightJoystick.lastShot> (rapidFire>0?100:300)){
+      bullets.push({x:player.x, y:player.y, dx:Math.cos(angle)*5, dy:Math.sin(angle)*5, r:5, color:'yellow'});
+      if(explosive){
+        bullets.push({x:player.x, y:player.y, dx:Math.cos(angle+0.2)*5, dy:Math.sin(angle+0.2)*5, r:5, color:'orange'});
+        bullets.push({x:player.x, y:player.y, dx:Math.cos(angle-0.2)*5, dy:Math.sin(angle-0.2)*5, r:5, color:'orange'});
+      }
+      rightJoystick.lastShot=Date.now();
+    }
+  }
+
+  bullets.forEach((b,i)=>{ b.x+=b.dx; b.y+=b.dy; if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) bullets.splice(i,1); });
+
+  enemies.forEach(e=>{
+    let angle = Math.atan2(player.y-e.y, player.x-e.x);
+    let speed = e.type==='fast'?3:1.5;
+    e.x += Math.cos(angle)*speed;
+    e.y += Math.sin(angle)*speed;
+    if(Math.hypot(player.x-e.x, player.y-e.y)<player.r+e.r){
+      if(player.health>0){ player.health-=e.type==='fast'?5:10; if(player.health<=0) gameOver=true; }
+    }
+  });
+
+  // Bullet-enemy collision
+  for(let i=enemies.length-1;i>=0;i--){
+    for(let j=bullets.length-1;j>=0;j--){
+      let e=enemies[i], b=bullets[j];
+      if(Math.hypot(e.x-b.x,e.y-b.y)<e.r+b.r){
+        enemies.splice(i,1); bullets.splice(j,1);
+        score += doublePoints>0?2:1;
+        break;
+      }
+    }
+  }
+
+  // Power-up collision
+  for(let i=powerUps.length-1;i>=0;i--){
+    let p=powerUps[i];
+    if(Math.hypot(player.x-p.x, player.y-p.y)<player.r+p.r){
+      if(p.type==='rapid') rapidFire=300;
+      if(p.type==='shield'){ player.health=Math.min(player.health+50,100); }
+      if(p.type==='double') doublePoints=300;
+      if(p.type==='speed') speedBoost=300;
+      if(p.type==='heal') player.health=Math.min(player.health+30,100);
+      if(p.type==='explosive') explosive=true; setTimeout(()=>explosive=false,5000);
+      powerUps.splice(i,1);
+    }
+  }
+
+  if(rapidFire>0) rapidFire--;
+  if(doublePoints>0) doublePoints--;
+  if(speedBoost>0) speedBoost--;
+}
+
+// Draw
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Player
+  ctx.fillStyle='blue';
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+  ctx.fill();
+  // Bullets
+  bullets.forEach(b=>{
+    ctx.fillStyle=b.color;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+  });
+  // Enemies
+  enemies.forEach(e=>{
+    ctx.fillStyle=e.color;
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+    ctx.fill();
+  });
+  // Power-ups
+  powerUps.forEach(p=>{
+    ctx.fillStyle = p.type==='rapid'?'orange':p.type==='shield'?'cyan':p.type==='double'?'magenta':p.type==='speed'?'yellow':p.type==='heal'?'green':'red';
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+  });
+  // Left joystick
+  ctx.strokeStyle='white'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(leftJoystick.x,leftJoystick.y,leftJoystick.r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(leftJoystick.x+leftJoystick.dx,leftJoystick.y+leftJoystick.dy,10,0,Math.PI*2); ctx.fillStyle='white'; ctx.fill();
+  // Right joystick
+  ctx.strokeStyle='white'; ctx.beginPath(); ctx.arc(rightJoystick.x,rightJoystick.y,rightJoystick.r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(rightJoystick.x+rightJoystick.dx,rightJoystick.y+rightJoystick.dy,10,0,Math.PI*2); ctx.fillStyle='white'; ctx.fill();
+  // UI
+  document.getElementById('health-fill').style.width = player.health*2+'px';
+  document.getElementById('score-display').innerText = 'Score: '+score;
+  if(gameOver){
+    ctx.fillStyle='white';
+    ctx.font='48px sans-serif';
+    ctx.fillText('Game Over',canvas.width/2-120,canvas.height/2);
+  }
+}
+
+// Loop
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+setInterval(spawnEnemy,2000);
+setInterval(spawnPowerUp,10000);
+loop();
+
+window.addEventListener('resize',()=>{canvas.width=window.innerWidth; canvas.height=window.innerHeight;});
+</script>
+</body>
+</html>
