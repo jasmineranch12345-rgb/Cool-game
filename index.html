@@ -1,317 +1,653 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arena Shooter V11</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+<title>Arena Shooter V10.3 (Final)</title>
 <style>
-html, body { margin:0; padding:0; overflow:hidden; background:#111; touch-action:none; }
-canvas { display:block; background:#111; }
-#health-bar { position:absolute; top:20px; left:20px; width:200px; height:20px; border:2px solid white; }
-#health-fill { width:100%; height:100%; background:limegreen; transition:width 0.1s; }
-#score-display { position:absolute; top:50px; left:20px; color:white; font-size:24px; }
-#timer-display { position:absolute; top:80px; left:20px; color:white; font-size:24px; }
-#menu-screen, #gameover-screen {
-  position:absolute; top:0; left:0; width:100%; height:100%;
-  background: rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center;
-  color:white; font-family:sans-serif; font-size:24px;
-}
-.menu-button { padding:15px 30px; margin:10px; background:#333; color:white; border:none; border-radius:10px; font-size:24px; }
-.powerup-legend { display:flex; flex-wrap:wrap; justify-content:center; margin-top:20px; }
-.legend-item { margin:5px; padding:5px 10px; border-radius:5px; background:#222; color:white; display:flex; align-items:center; font-size:20px; }
-.legend-item span { margin-left:5px; }
-#minimap { position:absolute; top:20px; right:20px; width:150px; height:100px; background:rgba(0,0,0,0.5); border:2px solid white; }
+  :root{--bg:#0c0c0f;--panel:#111;--accent:#fff;}
+  html,body{height:100%;margin:0;background:var(--bg);-webkit-user-select:none;user-select:none;touch-action:none;}
+  canvas{display:block;background:transparent;}
+  #ui{
+    position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;font-family:Segoe UI,Roboto,Arial;
+  }
+  #health-bar{position:absolute;left:16px;top:14px;width:220px;height:20px;border:2px solid rgba(255,255,255,0.9);background:#222;pointer-events:auto}
+  #health-fill{height:100%;width:100%;background:linear-gradient(90deg,#5ee07a,#37b24d);transition:width .12s linear;}
+  #score{position:absolute;left:16px;top:44px;color:#fff;font-size:18px;pointer-events:auto}
+  #timer{position:absolute;left:16px;top:70px;color:#fff;font-size:18px;pointer-events:auto}
+  #minimap{position:absolute;right:16px;top:14px;width:160px;height:110px;border:2px solid rgba(255,255,255,0.9);background:rgba(0,0,0,0.45);pointer-events:auto}
+  #menu,#gameover{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);color:white;z-index:40;font-size:18px;padding:20px;box-sizing:border-box}
+  .menu-panel{max-width:720px;width:100%;text-align:center}
+  .big-btn{display:inline-block;margin:12px;padding:12px 20px;background:#222;color:white;border-radius:10px;border:1px solid #444;font-size:18px;pointer-events:auto}
+  .legend{display:flex;flex-wrap:wrap;justify-content:center;margin-top:12px;gap:8px}
+  .legend-item{background:#1a1a1a;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:8px}
+  .legend-emoji{font-size:18px}
+  /* Joystick overlay helper (visual only) */
+  .js-visual{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:30}
+  .js-circle{position:absolute;border-radius:999px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);width:100px;height:100px;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center}
+  .js-knob{width:46px;height:46px;border-radius:999px;background:rgba(255,255,255,0.12)}
+  @media (orientation:portrait) {
+    #minimap{width:120px;height:90px}
+  }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
-<div id="health-bar"><div id="health-fill"></div></div>
-<div id="score-display">Score: 0</div>
-<div id="timer-display"></div>
-<canvas id="minimap"></canvas>
+<canvas id="gameCanvas"></canvas>
 
-<div id="menu-screen">
-  <div>ARENA SHOOTER V11</div>
-  <button class="menu-button" onclick="startGame('survival')">Survival Mode</button>
-  <button class="menu-button" onclick="startGame('time')">Time Attack Mode</button>
-  <div class="powerup-legend">
-    <div class="legend-item" style="background:orange;">⚡ <span>Rapid Fire</span></div>
-    <div class="legend-item" style="background:cyan;">🛡 <span>Shield</span></div>
-    <div class="legend-item" style="background:green;">💖 <span>Heal</span></div>
-    <div class="legend-item" style="background:magenta;">✦ <span>Double Points</span></div>
-    <div class="legend-item" style="background:yellow;">🏃 <span>Speed Boost</span></div>
-    <div class="legend-item" style="background:red;">💥 <span>Explosive Bullets</span></div>
-    <div class="legend-item" style="background:purple;">🔫 <span>Spread / Laser</span></div>
+<div id="ui">
+  <div id="health-bar"><div id="health-fill"></div></div>
+  <div id="score">Score: 0</div>
+  <div id="timer"></div>
+  <canvas id="minimap"></canvas>
+</div>
+
+<div id="menu">
+  <div class="menu-panel">
+    <h1>Arena Shooter — V10.3</h1>
+    <div style="margin:10px 0">Left joystick = move · Right joystick = aim & shoot</div>
+    <div style="margin:14px 0">
+      <button class="big-btn" onclick="startGame('survival')">Start Survival</button>
+      <button class="big-btn" onclick="startGame('time')">Start Time Attack</button>
+    </div>
+
+    <div style="margin-top:10px">Power-up legend:</div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-emoji">⚡</div><div>Rapid Fire (orange)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🛡</div><div>Shield (cyan)</div></div>
+      <div class="legend-item"><div class="legend-emoji">💖</div><div>Heal (green)</div></div>
+      <div class="legend-item"><div class="legend-emoji">✦</div><div>Double Points (magenta)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🏃</div><div>Speed Boost (yellow)</div></div>
+      <div class="legend-item"><div class="legend-emoji">💥</div><div>Explosive (red)</div></div>
+      <div class="legend-item"><div class="legend-emoji">🔫</div><div>Spread (purple)</div></div>
+    </div>
+
+    <div style="margin-top:14px;font-size:14px;color:#ddd">Tip: Aim with the right stick — the white arrow shows your shooting direction.</div>
   </div>
-  <div style="margin-top:20px;font-size:18px;">Left joystick = move, Right joystick = aim/shoot</div>
 </div>
 
-<div id="gameover-screen" style="display:none;">
-  <div id="gameover-text">Game Over</div>
-  <div id="final-score">Score: 0</div>
-  <button class="menu-button" onclick="backToMenu()">Back to Menu</button>
-  <button class="menu-button" onclick="restartGame()">Restart</button>
+<div id="gameover" style="display:none">
+  <div class="menu-panel">
+    <h1>Game Over</h1>
+    <div id="finalScore" style="margin:8px 0">Score: 0</div>
+    <div style="margin-top:12px">
+      <button class="big-btn" onclick="restartGame()">Restart</button>
+      <button class="big-btn" onclick="backToMenu()">Back to Menu</button>
+    </div>
+  </div>
 </div>
+
+<!-- Visual joystick indicators (optional, not required for gameplay) -->
+<div class="js-visual" id="jsVisual"></div>
 
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-const minimap = document.getElementById('minimap'); 
-const mmCtx = minimap.getContext('2d');
+/* ======= Arena Shooter V10.3 — Single file =======
+   Features:
+   - Single-file HTML for Safari on iPad
+   - Left joystick (move) & right joystick (aim & shoot)
+   - Arrow points in shooting direction
+   - Enemies: fast (circle) and slow (triangle/large) with health
+   - Obstacles: rect/circle/triangle — no phasing; sliding on collision
+   - Power-ups with emoji icons and legend
+   - Mini-map top-right (player, enemies, power-ups)
+   - Damage per hit with cooldowns
+   - Spawn waves, time attack mode, HUD
+   - Optimized loops & simple collision approximations for performance
+*/
 
-const arena = {width:3000, height:2000};
-let gameMode = 'survival', timer = 60, gameState = 'menu';
-let player = {x:arena.width/2, y:arena.height/2, r:20, color:'blue', speed:3, health:100, flash:0};
-let bullets = [], enemies = [], powerUps = [], obstacles = [], score = 0;
-let leftJoystick = {x:100,y:canvas.height-100,r:50,dx:0,dy:0,touchId:null};
-let rightJoystick = {x:canvas.width-100,y:canvas.height-100,r:50,dx:0,dy:0,touchId:null,active:false,lastShot:0};
-const powerUpTypes=['rapid','shield','double','speed','heal','explosive','spread'];
-let rapidFire=0,doublePoints=0,speedBoost=0,explosive=false;
+/* ---------- setup ---------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const minimapCanvas = document.getElementById('minimap');
+const mm = minimapCanvas.getContext('2d');
 
-// Create obstacles
-const shapes=['rect','circle','triangle'];
-for(let i=0;i<50;i++){
-  obstacles.push({x:Math.random()*arena.width,y:Math.random()*arena.height,shape:shapes[Math.floor(Math.random()*shapes.length)],w:60,h:60,r:30});
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  minimapCanvas.width = Math.min(180, Math.floor(window.innerWidth * 0.18));
+  minimapCanvas.height = Math.min(130, Math.floor(window.innerHeight * 0.12));
+  // reposition joysticks visuals
+  leftStick.x = 110; leftStick.y = canvas.height - 110;
+  rightStick.x = canvas.width - 110; rightStick.y = canvas.height - 110;
+}
+window.addEventListener('resize', resize);
+
+const arena = { width: 3000, height: 2000 };
+
+/* ---------- game state ---------- */
+let gameState = 'menu'; // menu, playing, gameover
+let gameMode = 'survival';
+let timer = 90;
+let score = 0;
+
+/* player */
+const player = {
+  x: arena.width / 2,
+  y: arena.height / 2,
+  r: 20,
+  color: '#4da6ff',
+  speed: 3.2,
+  health: 100,
+  flash: 0 // frames to flash on hit
+};
+
+/* bullets, enemies, obstacles, powerups */
+let bullets = [];
+let enemies = [];
+let powerUps = [];
+let obstacles = [];
+
+/* joysticks state */
+const leftStick = { x: 110, y: window.innerHeight - 110, r: 56, dx: 0, dy: 0, id: null };
+const rightStick = { x: window.innerWidth - 110, y: window.innerHeight - 110, r: 56, dx: 0, dy: 0, id: null, active: false, lastShot: 0 };
+
+/* power-up types */
+const powerUpTypes = ['rapid','shield','double','speed','heal','explosive','spread'];
+
+/* active buffs */
+let rapidFire = 0, doublePoints = 0, speedBoost = 0, explosive = false, spread = false;
+
+/* knobs visualization */
+const jsVisual = document.getElementById('jsVisual');
+
+/* create obstacles */
+(function createObstacles(){
+  const shapes = ['rect','circle','triangle'];
+  for (let i=0;i<55;i++){
+    const shape = shapes[Math.floor(Math.random()*shapes.length)];
+    const x = Math.random()*(arena.width-160)+80;
+    const y = Math.random()*(arena.height-160)+80;
+    if (shape === 'rect'){
+      obstacles.push({shape:'rect', x:x, y:y, w:80 + Math.random()*80, h:50 + Math.random()*120});
+    } else if (shape === 'circle'){
+      obstacles.push({shape:'circle', x:x, y:y, r:30 + Math.random()*40});
+    } else {
+      obstacles.push({shape:'triangle', x:x, y:y, r:30 + Math.random()*40});
+    }
+  }
+})();
+
+/* ---------- helpers (collision) ---------- */
+/* circle vs rect collision */
+function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
+  const closestX = Math.max(rx, Math.min(cx, rx+rw));
+  const closestY = Math.max(ry, Math.min(cy, ry+rh));
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return dx*dx + dy*dy < cr*cr;
+}
+/* circle vs circle */
+function circleCircleCollision(aX,aY,aR, bX,bY,bR){
+  const d = Math.hypot(aX-bX, aY-bY);
+  return d < (aR + bR);
+}
+/* circle vs triangle approximate via bounding box (fast) */
+function circleTriangleCollision(cx,cy,cr, tx,ty,tr){
+  // approximate triangle as bounding square of size 2*tr
+  return Math.abs(cx - tx) < (tr + cr) && Math.abs(cy - ty) < (tr + cr);
 }
 
-// Touch controls
-canvas.addEventListener('touchstart', e => {
-  for(const t of e.changedTouches){
-    let dxL=t.clientX-leftJoystick.x, dyL=t.clientY-leftJoystick.y;
-    let dxR=t.clientX-rightJoystick.x, dyR=t.clientY-rightJoystick.y;
-    if(Math.hypot(dxL,dyL)<leftJoystick.r) leftJoystick.touchId = t.identifier;
-    if(Math.hypot(dxR,dyR)<rightJoystick.r){rightJoystick.touchId=t.identifier; rightJoystick.active=true;}
+/* clamp position inside arena */
+function clampToArena(ent){
+  ent.x = Math.max(ent.r || 0, Math.min(arena.width - (ent.r || 0), ent.x));
+  ent.y = Math.max(ent.r || 0, Math.min(arena.height - (ent.r || 0), ent.y));
+}
+
+/* slide entity along obstacles (player and enemies) - simple approach:
+   attempt X move then Y move; if blocked on axis, cancel movement on that axis.
+*/
+function attemptMove(entity, nextX, nextY){
+  let canX = true, canY = true;
+  // check each obstacle:
+  for (const ob of obstacles){
+    if (ob.shape === 'rect'){
+      if (circleRectCollision(nextX, entity.y, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canX = false;
+      if (circleRectCollision(entity.x, nextY, entity.r, ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h)) canY = false;
+    } else if (ob.shape === 'circle'){
+      if (circleCircleCollision(nextX, entity.y, entity.r, ob.x, ob.y, ob.r)) canX = false;
+      if (circleCircleCollision(entity.x, nextY, entity.r, ob.x, ob.y, ob.r)) canY = false;
+    } else { // triangle approximation bounding box
+      if (circleTriangleCollision(nextX, entity.y, entity.r, ob.x, ob.y, ob.r)) canX = false;
+      if (circleTriangleCollision(entity.x, nextY, entity.r, ob.x, ob.y, ob.r)) canY = false;
+    }
+    if (!canX && !canY) break;
+  }
+  if (canX) entity.x = nextX;
+  if (canY) entity.y = nextY;
+  clampToArena(entity);
+}
+
+/* ---------- spawns ---------- */
+function spawnEnemy(nearPlayerBias = 1.0){
+  // spawn somewhat near player but outside immediate collision: choose a side and offset
+  const side = Math.floor(Math.random()*4);
+  let x,y;
+  const margin = 120 + Math.random()*220*nearPlayerBias;
+  if (side === 0){ x = player.x + margin; y = player.y + (Math.random()-0.5)*600; }
+  else if (side === 1){ x = player.x - margin; y = player.y + (Math.random()-0.5)*600; }
+  else if (side === 2){ x = player.x + (Math.random()-0.5)*800; y = player.y + margin; }
+  else { x = player.x + (Math.random()-0.5)*800; y = player.y - margin; }
+  x = Math.max(40, Math.min(arena.width-40, x));
+  y = Math.max(40, Math.min(arena.height-40, y));
+  const t = Math.random()<0.55 ? 'fast' : 'slow';
+  const health = t === 'fast' ? 1 : 6 + Math.floor(Math.random()*4);
+  enemies.push({ x,y, type:t, r: t==='fast'?10:30, color: t==='fast'?'#ff6b6b':'#9e2a2b', health, maxHealth:health, lastHit:0, damage: t==='fast'?4:12 });
+}
+
+function spawnPowerUp(){
+  const type = powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)];
+  powerUps.push({ x: Math.random()*(arena.width-80)+40, y: Math.random()*(arena.height-80)+40, r:16, type, duration: 800 });
+}
+
+/* spawn waves */
+let waveTimerId = null;
+function startWaves(){
+  // initial small spawn and then repeating waves
+  spawnEnemy();
+  for (let i=0;i<3;i++) spawnEnemy(0.8);
+  if (waveTimerId) clearInterval(waveTimerId);
+  waveTimerId = setInterval(()=>{ if (gameState==='playing') { for(let i=0;i<4;i++) spawnEnemy(1.2); } }, 4500);
+}
+
+/* ---------- input (touch) ---------- */
+canvas.addEventListener('touchstart', (ev)=>{
+  for(const t of ev.changedTouches){
+    const tx = t.clientX, ty = t.clientY;
+    // left stick area
+    if (Math.hypot(tx - leftStick.x, ty - leftStick.y) <= leftStick.r) leftStick.id = t.identifier;
+    // right stick area
+    if (Math.hypot(tx - rightStick.x, ty - rightStick.y) <= rightStick.r) { rightStick.id = t.identifier; rightStick.active = true; }
   }
 });
-canvas.addEventListener('touchmove', e => {
-  for(const t of e.changedTouches){
-    if(t.identifier===leftJoystick.touchId){
-      leftJoystick.dx=t.clientX-leftJoystick.x; leftJoystick.dy=t.clientY-leftJoystick.y;
-      let dist = Math.hypot(leftJoystick.dx,leftJoystick.dy);
-      if(dist>leftJoystick.r){ leftJoystick.dx=leftJoystick.dx/dist*leftJoystick.r; leftJoystick.dy=leftJoystick.dy/dist*leftJoystick.r; }
+canvas.addEventListener('touchmove', (ev)=>{
+  ev.preventDefault();
+  for(const t of ev.changedTouches){
+    const tx = t.clientX, ty = t.clientY;
+    if (t.identifier === leftStick.id){
+      leftStick.dx = tx - leftStick.x; leftStick.dy = ty - leftStick.y;
+      let d = Math.hypot(leftStick.dx, leftStick.dy);
+      if (d > leftStick.r) { leftStick.dx = leftStick.dx/d*leftStick.r; leftStick.dy = leftStick.dy/d*leftStick.r; }
     }
-    if(t.identifier===rightJoystick.touchId){
-      rightJoystick.dx=t.clientX-rightJoystick.x; rightJoystick.dy=t.clientY-rightJoystick.y;
-      let dist = Math.hypot(rightJoystick.dx,rightJoystick.dy);
-      if(dist>rightJoystick.r){ rightJoystick.dx=rightJoystick.dx/dist*rightJoystick.r; rightJoystick.dy=rightJoystick.dy/dist*rightJoystick.r; }
+    if (t.identifier === rightStick.id){
+      rightStick.dx = tx - rightStick.x; rightStick.dy = ty - rightStick.y;
+      let d = Math.hypot(rightStick.dx, rightStick.dy);
+      if (d > rightStick.r) { rightStick.dx = rightStick.dx/d*rightStick.r; rightStick.dy = rightStick.dy/d*rightStick.r; }
     }
   }
 });
-canvas.addEventListener('touchend', e => {
-  for(const t of e.changedTouches){
-    if(t.identifier===leftJoystick.touchId){ leftJoystick.touchId=null; leftJoystick.dx=0; leftJoystick.dy=0; }
-    if(t.identifier===rightJoystick.touchId){ rightJoystick.touchId=null; rightJoystick.dx=0; rightJoystick.dy=0; rightJoystick.active=false; }
+canvas.addEventListener('touchend', (ev)=>{
+  for(const t of ev.changedTouches){
+    if (t.identifier === leftStick.id){ leftStick.id = null; leftStick.dx = 0; leftStick.dy = 0; }
+    if (t.identifier === rightStick.id){ rightStick.id = null; rightStick.dx = 0; rightStick.dy = 0; rightStick.active = false; }
   }
 });
 
-// Collision helpers
-function circleRectCollision(cx,cy,cr,rx,ry,rw,rh){
-  let closestX = Math.max(rx, Math.min(cx, rx+rw));
-  let closestY = Math.max(ry, Math.min(cy, ry+rh));
-  let dx = cx - closestX, dy = cy - closestY;
-  return dx*dx+dy*dy<cr*cr;
-}
-function circleCircleCollision(c1,c2){ return Math.hypot(c1.x-c2.x,c1.y-c2.y)<c1.r+c2.r; }
+/* Also allow mouse for quick testing on desktop */
+let mouseDownLeft=false, mouseDownRight=false;
+canvas.addEventListener('mousedown', (e)=>{
+  const x=e.clientX, y=e.clientY;
+  if (x < window.innerWidth*0.6){ mouseDownLeft = true; leftStick.dx = x - leftStick.x; leftStick.dy = y - leftStick.y; }
+  else { mouseDownRight = true; rightStick.active = true; rightStick.dx = x - rightStick.x; rightStick.dy = y - rightStick.y; }
+});
+canvas.addEventListener('mousemove', (e)=>{
+  if (mouseDownLeft){ leftStick.dx = e.clientX - leftStick.x; leftStick.dy = e.clientY - leftStick.y; let d=Math.hypot(leftStick.dx,leftStick.dy); if(d>leftStick.r){leftStick.dx=leftStick.dx/d*leftStick.r;leftStick.dy=leftStick.dy/d*leftStick.r;} }
+  if (mouseDownRight){ rightStick.dx = e.clientX - rightStick.x; rightStick.dy = e.clientY - rightStick.y; let d=Math.hypot(rightStick.dx,rightStick.dy); if(d>rightStick.r){rightStick.dx=rightStick.dx/d*rightStick.r;rightStick.dy=rightStick.dy/d*rightStick.r;} }
+});
+window.addEventListener('mouseup', ()=>{ mouseDownLeft=false; mouseDownRight=false; leftStick.dx=0; leftStick.dy=0; rightStick.dx=0; rightStick.dy=0; rightStick.active=false; });
 
-// Game state functions
-function startGame(mode){
-  gameMode = mode; gameState='playing'; timer=60;
-  player.x=arena.width/2; player.y=arena.height/2; player.health=100;
-  bullets=[]; enemies=[]; powerUps=[]; score=0;
-  document.getElementById('menu-screen').style.display='none';
-  spawnEnemyWave(); spawnPowerUp();
-}
-function endGame(){ gameState='gameover'; document.getElementById('gameover-screen').style.display='flex'; document.getElementById('final-score').innerText='Score: '+score; }
-function backToMenu(){ gameState='menu'; document.getElementById('menu-screen').style.display='flex'; document.getElementById('gameover-screen').style.display='none'; }
-function restartGame(){ document.getElementById('gameover-screen').style.display='none'; startGame(gameMode); }
-
-// Enemy and power-up spawns
-function spawnEnemyWave(){ for(let i=0;i<5;i++){spawnEnemy();} setTimeout(()=>{if(gameState==='playing') spawnEnemyWave();},5000);}
-function spawnEnemy(){
-  const edge=Math.floor(Math.random()*4); let x,y; const margin=200;
-  if(edge===0){x=player.x+Math.random()*margin+50; y=player.y+Math.random()*arena.height/2;}
-  else if(edge===1){x=player.x-Math.random()*margin-50; y=player.y+Math.random()*arena.height/2;}
-  else if(edge===2){x=player.x+Math.random()*arena.width/2; y=player.y+Math.random()*margin+50;}
-  else{x=player.x+Math.random()*arena.width/2; y=player.y-Math.random()*margin-50;}
-  let type=Math.random()<0.5?'fast':'slow'; let health=type==='fast'?1:5;
-  enemies.push({x,y,type,r:type==='fast'?10:30,color:type==='fast'?'red':'darkred',health,maxHealth:health,lastHit:0,damage:type==='fast'?5:12});
-}
-function spawnPowerUp(){ const type=powerUpTypes[Math.floor(Math.random()*powerUpTypes.length)]; powerUps.push({x:Math.random()*arena.width,y:Math.random()*arena.height,r:15,type,duration:500}); }
-
-// Update loop
-function update(){
-  if(gameState!=='playing') return;
-
-  // Player movement with obstacle collision
-  let dist = Math.hypot(leftJoystick.dx,leftJoystick.dy);
-  if(dist>5){
-    let speed=player.speed; if(speedBoost>0) speed*=1.5;
-    let nx=player.x+leftJoystick.dx/dist*speed, ny=player.y+leftJoystick.dy/dist*speed;
-    let canMoveX=true, canMoveY=true;
-    for(const ob of obstacles){
-      if(ob.shape==='rect' && circleRectCollision(nx,player.y,player.r,ob.x,ob.y,ob.w,ob.h)) canMoveX=false;
-      if(ob.shape==='rect' && circleRectCollision(player.x,ny,player.r,ob.x,ob.y,ob.w,ob.h)) canMoveY=false;
-      if(ob.shape==='circle' && Math.hypot(nx-ob.x,player.y-ob.y)<player.r+ob.r) canMoveX=false;
-      if(ob.shape==='circle' && Math.hypot(player.x-ob.x,ny-ob.y)<player.r+ob.r) canMoveY=false;
-      if(ob.shape==='triangle'){ let dx=nx-ob.x,dy=player.y-ob.y; if(Math.abs(dx)<ob.r && Math.abs(dy)<ob.r) canMoveX=false; dx=player.x-ob.x; dy=ny-ob.y; if(Math.abs(dx)<ob.r && Math.abs(dy)<ob.r) canMoveY=false;}
-    }
-    if(canMoveX) player.x=nx; if(canMoveY) player.y=ny;
+/* ---------- core update ---------- */
+let lastFrame = performance.now();
+function update(dt){
+  if (gameState !== 'playing') return;
+  // movement
+  const ldx = leftStick.dx, ldy = leftStick.dy;
+  const lmag = Math.hypot(ldx,ldy);
+  if (lmag > 8){
+    const nx = player.x + (ldx / lmag) * player.speed * (speedBoost>0?1.45:1.0);
+    const ny = player.y + (ldy / lmag) * player.speed * (speedBoost>0?1.45:1.0);
+    attemptMove(player, nx, ny);
   }
-
-  // Shooting
-  if(rightJoystick.active){
-    let angle=Math.atan2(rightJoystick.dy,rightJoystick.dx);
-    if(!rightJoystick.lastShot || Date.now()-rightJoystick.lastShot>(rapidFire>0?100:300)){
-      bullets.push({x:player.x,y:player.y,dx:Math.cos(angle)*8,dy:Math.sin(angle)*8,r:5,color:'yellow'});
-      rightJoystick.lastShot=Date.now();
+  // shooting via right stick
+  if (rightStick.active){
+    const rdx = rightStick.dx, rdy = rightStick.dy;
+    const rmag = Math.hypot(rdx,rdy);
+    if (rmag > 6){
+      const angle = Math.atan2(rdy, rdx);
+      const now = Date.now();
+      const fireRate = (rapidFire>0) ? 100 : 300;
+      if (!rightStick.lastShot || now - rightStick.lastShot > fireRate){
+        // build bullets: normal, spread, explosive variants
+        if (spread){
+          // spread shot: three bullets
+          for (let aOff of [-0.18,0,0.18]){
+            const ax = Math.cos(angle + aOff) * 9;
+            const ay = Math.sin(angle + aOff) * 9;
+            bullets.push({x:player.x + Math.cos(angle+ aOff)*player.r, y:player.y + Math.sin(angle+ aOff)*player.r, dx:ax, dy:ay, r:6, life:220, color:'#ffd43b', explosive:false});
+          }
+        } else {
+          bullets.push({x:player.x + Math.cos(angle)*player.r, y:player.y + Math.sin(angle)*player.r, dx:Math.cos(angle)*10, dy:Math.sin(angle)*10, r:6, life:220, color:'#ffd43b', explosive:explosive});
+        }
+        rightStick.lastShot = now;
+      }
     }
   }
 
-  // Bullets movement and collision
-  bullets.forEach((b,bi)=>{
-    b.x+=b.dx; b.y+=b.dy;
-    for(let ei=enemies.length-1;ei>=0;ei--){
-      let e=enemies[ei];
-      if(Math.hypot(e.x-b.x,e.y-b.y)<e.r+b.r){ e.health--; bullets.splice(bi,1); if(e.health<=0){enemies.splice(ei,1); score+=doublePoints>0?2:1;} break;}
+  // update bullets
+  for (let i = bullets.length-1; i>=0; i--){
+    const b = bullets[i];
+    b.x += b.dx;
+    b.y += b.dy;
+    b.life -= dt;
+    if (b.x < 0 || b.x > arena.width || b.y < 0 || b.y > arena.height || b.life <= 0){
+      bullets.splice(i,1); continue;
     }
-  });
+    // bullet hits enemies
+    for (let j = enemies.length-1; j>=0; j--){
+      const e = enemies[j];
+      const d = Math.hypot(e.x - b.x, e.y - b.y);
+      if (d < e.r + b.r){
+        // hit
+        e.health -= 1;
+        if (b.explosive){
+          // apply small AOE
+          for (let k=enemies.length-1;k>=0;k--){
+            const e2 = enemies[k];
+            const d2 = Math.hypot(e2.x - b.x, e2.y - b.y);
+            if (d2 < 80) e2.health -= 1;
+          }
+        }
+        bullets.splice(i,1);
+        if (e.health <= 0){
+          score += (doublePoints>0) ? 2 : 1;
+          enemies.splice(j,1);
+        }
+        break;
+      }
+    }
+  }
 
-  // Enemy movement & attacks
-  const now=Date.now();
-  enemies.forEach(e=>{
-    let angle=Math.atan2(player.y-e.y,player.x-e.x);
-    let speed=e.type==='fast'?3:1.5;
-    let nx=e.x+Math.cos(angle)*speed; let ny=e.y+Math.sin(angle)*speed;
-    let canMove=true;
-    for(const ob of obstacles){
-      if(ob.shape==='rect' && circleRectCollision(nx,ny,e.r,ob.x,ob.y,ob.w,ob.h)) canMove=false;
-      if(ob.shape==='circle' && Math.hypot(nx-ob.x,ny-ob.y)<e.r+ob.r) canMove=false;
-      if(ob.shape==='triangle'){ let dx=nx-ob.x,dy=ny-ob.y; if(Math.abs(dx)<ob.r && Math.abs(dy)<ob.r) canMove=false; }
+  // enemies movement & attacks
+  const now = Date.now();
+  for (const e of enemies){
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    const spd = (e.type==='fast')?3.2:1.3;
+    const nx = e.x + Math.cos(ang) * spd;
+    const ny = e.y + Math.sin(ang) * spd;
+    attemptMove(e, nx, ny);
+    // attack if close
+    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+    if (dist < player.r + e.r + 2){
+      if (!e.lastHit || now - e.lastHit > 600){
+        player.health -= e.damage;
+        player.flash = 10;
+        e.lastHit = now;
+        if (player.health <= 0){
+          player.health = 0;
+          endGame();
+        }
+      }
     }
-    if(canMove){ e.x=nx; e.y=ny; }
-    if(Math.hypot(player.x-e.x,player.y-e.y)<player.r+e.r){
-      if(!e.lastHit || now-e.lastHit>500){ player.health-=e.damage; player.flash=10; e.lastHit=now; if(player.health<=0) endGame();}
-    }
-  });
+  }
 
-  // Power-up collision
-  for(let i=powerUps.length-1;i>=0;i--){
-    let p=powerUps[i];
-    if(Math.hypot(player.x-p.x,player.y-p.y)<player.r+p.r){
-      if(p.type==='rapid') rapidFire=300;
-      if(p.type==='shield') player.health=Math.min(player.health+50,100);
-      if(p.type==='double') doublePoints=300;
-      if(p.type==='speed') speedBoost=300;
-      if(p.type==='heal') player.health=Math.min(player.health+30,100);
-      if(p.type==='explosive') {explosive=true; setTimeout(()=>explosive=false,5000);}
+  // power-ups pickup handled similarly
+  for (let i=powerUps.length-1;i>=0;i--){
+    const p = powerUps[i];
+    if (Math.hypot(player.x - p.x, player.y - p.y) < player.r + p.r){
+      applyPowerUp(p.type);
       powerUps.splice(i,1);
     }
   }
 
-  if(rapidFire>0) rapidFire--; if(doublePoints>0) doublePoints--; if(speedBoost>0) speedBoost--;
-  if(gameMode==='time'){ timer-=1/60; if(timer<=0) endGame(); }
-  if(player.flash>0) player.flash--;
+  // spawn timers & buffs decay
+  if (rapidFire>0) rapidFire--;
+  if (doublePoints>0) doublePoints--;
+  if (speedBoost>0) speedBoost--;
+  // simple score/time updates
+  if (gameMode === 'time') {
+    timer -= dt / 1000;
+    if (timer <= 0) endGame();
+  }
 }
-  // Continue from previous script tag
-function draw(){
-  if(gameState!=='playing') return;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  let offsetX=canvas.width/2-player.x, offsetY=canvas.height/2-player.y;
 
-  // Obstacles
-  obstacles.forEach(ob=>{
-    ctx.save(); ctx.translate(offsetX,offsetY);
-    ctx.fillStyle='grey';
-    if(ob.shape==='rect') ctx.fillRect(ob.x-ob.w/2,ob.y-ob.h/2,ob.w,ob.h);
-    if(ob.shape==='circle') ctx.beginPath(); ctx.arc(ob.x,ob.y,ob.r,0,Math.PI*2); ctx.fill();
-    if(ob.shape==='triangle') ctx.beginPath(); ctx.moveTo(ob.x,ob.y-ob.r); ctx.lineTo(ob.x-ob.r,ob.y+ob.r); ctx.lineTo(ob.x+ob.r,ob.y+ob.r); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  });
+/* apply powerup */
+function applyPowerUp(type){
+  switch(type){
+    case 'rapid': rapidFire = 300; break;
+    case 'shield': player.health = Math.min(100, player.health + 45); break;
+    case 'double': doublePoints = 300; break;
+    case 'speed': speedBoost = 300; break;
+    case 'heal': player.health = Math.min(100, player.health + 30); break;
+    case 'explosive': explosive = true; setTimeout(()=>explosive=false,5000); break;
+    case 'spread': spread = true; setTimeout(()=>spread=false,5000); break;
+  }
+}
 
-  // Player
-  ctx.save(); ctx.translate(offsetX,offsetY);
-  ctx.fillStyle=player.flash>0?'white':player.color; ctx.beginPath();
-  ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
-  ctx.restore();
+/* ---------- drawing ---------- */
+function worldToScreen(wx, wy){
+  // center camera on player, but clamp to arena bounds
+  const camX = Math.min(Math.max(player.x - canvas.width/2, 0), arena.width - canvas.width);
+  const camY = Math.min(Math.max(player.y - canvas.height/2, 0), arena.height - canvas.height);
+  return { sx: wx - camX, sy: wy - camY };
+}
 
-  // Arrow showing shooting direction
-  if(rightJoystick.active){
-    let angle=Math.atan2(rightJoystick.dy,rightJoystick.dx);
-    ctx.save(); ctx.translate(canvas.width/2,canvas.height/2);
-    ctx.strokeStyle='white'; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(angle)*40,Math.sin(angle)*40); ctx.stroke();
-    ctx.restore();
+function drawScene(){
+  // clear
+  ctx.fillStyle = '#0c0c0f';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // camera offsets
+  const camX = Math.min(Math.max(player.x - canvas.width/2, 0), arena.width - canvas.width);
+  const camY = Math.min(Math.max(player.y - canvas.height/2, 0), arena.height - canvas.height);
+
+  // draw arena background (subtle grid)
+  ctx.save();
+  ctx.translate(-camX, -camY);
+  ctx.fillStyle = '#0d0d0f';
+  // obstacles
+  for (const ob of obstacles){
+    ctx.fillStyle = '#444';
+    if (ob.shape === 'rect'){
+      ctx.fillRect(ob.x - ob.w/2, ob.y - ob.h/2, ob.w, ob.h);
+    } else if (ob.shape === 'circle'){
+      ctx.beginPath(); ctx.arc(ob.x, ob.y, ob.r, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.moveTo(ob.x, ob.y - ob.r); ctx.lineTo(ob.x - ob.r, ob.y + ob.r); ctx.lineTo(ob.x + ob.r, ob.y + ob.r); ctx.closePath(); ctx.fill();
+    }
   }
 
-  // Bullets
-  ctx.save(); ctx.translate(offsetX,offsetY);
-  bullets.forEach(b=>{
-    ctx.fillStyle=b.color; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
-  });
+  // bullets
+  for (const b of bullets){
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+    // small trail
+    ctx.fillStyle = 'rgba(255,215,0,0.2)';
+    ctx.beginPath(); ctx.arc(b.x - b.dx*2, b.y - b.dy*2, b.r*0.9, 0, Math.PI*2); ctx.fill();
+  }
 
-  // Enemies
-  enemies.forEach(e=>{
-    ctx.fillStyle=e.color; ctx.save();
-    ctx.translate(offsetX,offsetY);
-    if(e.type==='fast') ctx.beginPath(), ctx.arc(e.x,e.y,e.r,0,Math.PI*2), ctx.fill();
-    else if(e.type==='slow') ctx.fillRect(e.x-e.r,e.y-e.r,e.r*2,e.r*2);
-    // Health bar for slow
-    if(e.type==='slow'){ ctx.fillStyle='red'; ctx.fillRect(e.x-e.r,e.y-e.r-10,e.r*2,5); ctx.fillStyle='lime'; ctx.fillRect(e.x-e.r,e.y-e.r-10,(e.health/e.maxHealth)*e.r*2,5);}
-    ctx.restore();
-  });
-
-  // Power-ups
-  powerUps.forEach(p=>{
-    ctx.save(); ctx.translate(offsetX,offsetY);
-    ctx.font='24px sans-serif';
-    let emoji='';
-    switch(p.type){
-      case 'rapid': emoji='⚡'; break;
-      case 'shield': emoji='🛡'; break;
-      case 'double': emoji='✦'; break;
-      case 'speed': emoji='🏃'; break;
-      case 'heal': emoji='💖'; break;
-      case 'explosive': emoji='💥'; break;
-      case 'spread': emoji='🔫'; break;
+  // enemies
+  for (const e of enemies){
+    ctx.fillStyle = e.color;
+    if (e.type === 'fast'){
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
+    } else {
+      // triangle (slow)
+      ctx.beginPath(); ctx.moveTo(e.x, e.y - e.r); ctx.lineTo(e.x - e.r, e.y + e.r); ctx.lineTo(e.x + e.r, e.y + e.r); ctx.closePath(); ctx.fill();
+      // health bar when damaged
+      if (e.health < e.maxHealth){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(e.x - e.r, e.y - e.r - 12, e.r*2, 6);
+        ctx.fillStyle = '#3be07a';
+        ctx.fillRect(e.x - e.r, e.y - e.r - 12, (e.health / e.maxHealth) * e.r * 2, 6);
+      }
     }
-    ctx.fillText(emoji,p.x-12,p.y+8);
-    ctx.restore();
-  });
+  }
 
-  // Draw joysticks
-  ctx.fillStyle='rgba(255,255,255,0.2)';
-  ctx.beginPath(); ctx.arc(leftJoystick.x,leftJoystick.y,leftJoystick.r,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(leftJoystick.x+leftJoystick.dx,leftJoystick.y+leftJoystick.dy,leftJoystick.r/2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(rightJoystick.x,rightJoystick.y,rightJoystick.r,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(rightJoystick.x+rightJoystick.dx,rightJoystick.y+rightJoystick.dy,rightJoystick.r/2,0,Math.PI*2); ctx.fill();
+  // powerups as emoji
+  ctx.font = '22px serif';
+  for (const p of powerUps){
+    let emoji = '⚡';
+    if (p.type==='shield') emoji='🛡'; else if (p.type==='double') emoji='✦';
+    else if (p.type==='speed') emoji='🏃'; else if (p.type==='heal') emoji='💖';
+    else if (p.type==='explosive') emoji='💥'; else if (p.type==='spread') emoji='🔫';
+    ctx.fillText(emoji, p.x - 8, p.y + 8);
+  }
 
-  // Mini-map
-  mmCtx.clearRect(0,0,minimap.width,minimap.height);
-  mmCtx.fillStyle='white'; mmCtx.fillRect((player.x/arena.width)*minimap.width-2,(player.y/arena.height)*minimap.height-2,4,4);
-  obstacles.forEach(ob=>{
-    mmCtx.fillStyle='grey';
-    mmCtx.fillRect((ob.x/arena.width)*minimap.width-2,(ob.y/arena.height)*minimap.height-2,4,4);
-  });
-  enemies.forEach(e=>{
-    mmCtx.fillStyle=e.type==='fast'?'red':'darkred';
-    mmCtx.fillRect((e.x/arena.width)*minimap.width-2,(e.y/arena.height)*minimap.height-2,4,4);
-  });
-  powerUps.forEach(p=>{
-    mmCtx.fillStyle='yellow';
-    mmCtx.fillRect((p.x/arena.width)*minimap.width-2,(p.y/arena.height)*minimap.height-2,4,4);
-  });
+  // player
+  ctx.fillStyle = player.flash>0 ? '#ffffff' : player.color;
+  ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
 
-  // Update HUD
-  document.getElementById('health-fill').style.width=player.health+'%';
-  document.getElementById('score-display').innerText='Score: '+score;
-  document.getElementById('timer-display').innerText=gameMode==='time'?'Time: '+Math.ceil(timer):'';
+  // shooting arrow (world-space, drawn near player)
+  if (rightStick.active){
+    const rx = rightStick.dx, ry = rightStick.dy;
+    const mag = Math.hypot(rx,ry);
+    if (mag > 6){
+      const angle = Math.atan2(ry, rx);
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.rotate(angle);
+      // arrow line + triangle at end
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0 + Math.cos(angle)*40, 0 + Math.sin(angle)*40); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.moveTo(0 + Math.cos(angle)*46, 0 + Math.sin(angle)*46);
+      ctx.lineTo( -6 + Math.cos(angle)*34, -6 + Math.sin(angle)*34 );
+      ctx.lineTo( 6 + Math.cos(angle)*34, 6 + Math.sin(angle)*34 );
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
 
-  requestAnimationFrame(()=>{update(); draw();});
+  ctx.restore();
+
+  // HUD elements (health handled by DOM)
+  document.getElementById('health-fill').style.width = Math.max(0, player.health) + '%';
+  document.getElementById('score').innerText = 'Score: ' + score;
+  document.getElementById('timer').innerText = gameMode === 'time' ? ('Time: ' + Math.max(0, Math.ceil(timer))) : '';
 }
 
-// Start loop
-requestAnimationFrame(()=>{update(); draw();});
+/* ---------- minimap ---------- */
+function drawMinimap(){
+  mm.clearRect(0,0,minimapCanvas.width,minimapCanvas.height);
+  mm.fillStyle = '#080808';
+  mm.fillRect(0,0,minimapCanvas.width,minimapCanvas.height);
+  const sx = minimapCanvas.width / arena.width;
+  const sy = minimapCanvas.height / arena.height;
+  // obstacles (small grey dots)
+  mm.fillStyle = '#444';
+  for (const ob of obstacles){
+    mm.fillRect(Math.floor(ob.x * sx) - 1, Math.floor(ob.y * sy) - 1, 3, 3);
+  }
+  // powerups
+  for (const p of powerUps){
+    mm.fillStyle = '#ffd54f';
+    mm.fillRect(Math.floor(p.x * sx)-1, Math.floor(p.y * sy)-1, 3, 3);
+  }
+  // enemies
+  for (const e of enemies){
+    mm.fillStyle = e.type === 'fast' ? '#ff6b6b' : '#8b1f2b';
+    const ex = Math.floor(e.x * sx), ey = Math.floor(e.y * sy);
+    if (e.type === 'fast'){
+      mm.beginPath(); mm.arc(ex, ey, 2, 0, Math.PI*2); mm.fill();
+    } else {
+      mm.beginPath(); mm.moveTo(ex, ey-3); mm.lineTo(ex-3, ey+3); mm.lineTo(ex+3, ey+3); mm.closePath(); mm.fill();
+    }
+  }
+  // player
+  mm.fillStyle = '#4da6ff';
+  mm.fillRect(Math.floor(player.x * sx)-2, Math.floor(player.y * sy)-2, 4, 4);
+}
+
+/* ---------- main loop ---------- */
+let running = true;
+function mainLoop(ts){
+  const dt = Math.min(40, ts - lastFrame);
+  lastFrame = ts;
+  update(dt);
+  if (gameState === 'playing') {
+    drawScene();
+    drawMinimap();
+  }
+  if (running) requestAnimationFrame(mainLoop);
+}
+let lastFrame = performance.now();
+
+/* ---------- game control functions ---------- */
+function startGame(mode){
+  gameMode = mode || 'survival';
+  timer = (gameMode==='time') ? 60 : 9999;
+  score = 0;
+  bullets = []; enemies = []; powerUps = [];
+  player.x = arena.width / 2; player.y = arena.height / 2; player.health = 100; player.flash = 0;
+  rapidFire = doublePoints = speedBoost = 0; explosive = false; spread = false;
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('gameover').style.display = 'none';
+  gameState = 'playing';
+  startWaves();
+  // initial powerups
+  for (let i=0;i<3;i++) spawnPowerUp();
+}
+function endGame(){
+  gameState = 'gameover';
+  document.getElementById('finalScore').innerText = 'Score: ' + score;
+  document.getElementById('gameover').style.display = 'flex';
+  // stop waves
+  if (waveTimerId) { clearInterval(waveTimerId); waveTimerId = null; }
+}
+function backToMenu(){
+  document.getElementById('menu').style.display = 'flex';
+  document.getElementById('gameover').style.display = 'none';
+  gameState = 'menu';
+}
+function restartGame(){
+  document.getElementById('gameover').style.display = 'none';
+  startGame(gameMode);
+}
+
+/* ---------- initial setup ---------- */
+resize();
+requestAnimationFrame(mainLoop);
+
+/* ensure we show joystick visuals for clarity (small circles) */
+function updateJSVisual(){
+  jsVisual.innerHTML = '';
+  const createCircle = (cx, cy, r, knobX, knobY) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'js-circle';
+    wrap.style.left = cx + 'px';
+    wrap.style.top = cy + 'px';
+    wrap.style.width = (r*2) + 'px';
+    wrap.style.height = (r*2) + 'px';
+    wrap.style.marginLeft = '0px';
+    // knob
+    const knob = document.createElement('div');
+    knob.className='js-knob';
+    knob.style.transform = `translate(${knobX - cx}px, ${knobY - cy}px)`;
+    wrap.appendChild(knob);
+    jsVisual.appendChild(wrap);
+  };
+  createCircle(leftStick.x, leftStick.y, leftStick.r, leftStick.x + leftStick.dx, leftStick.y + leftStick.dy);
+  createCircle(rightStick.x, rightStick.y, rightStick.r, rightStick.x + rightStick.dx, rightStick.y + rightStick.dy);
+}
+setInterval(updateJSVisual, 80);
+
+/* small periodic spawns so arena remains alive */
+setInterval(()=>{
+  if (gameState==='playing' && Math.random() < 0.6) spawnPowerUp();
+}, 7000);
+
+/* safety: keep canvas focused for touch */
+canvas.addEventListener('touchstart', ()=>{ canvas.focus(); }, {passive:true});
+
+/* debug: keyboard controls for desktop testing (optional) */
+window.addEventListener('keydown', (e)=>{
+  if (e.key === 'm') { // toggle menu
+    if (gameState === 'menu') startGame('survival'); else backToMenu();
+  }
+  if (e.key === 'r') restartGame();
+});
+
+/* finished setup */
+console.log('Arena Shooter V10.3 loaded — ready.');
 </script>
 </body>
 </html>
