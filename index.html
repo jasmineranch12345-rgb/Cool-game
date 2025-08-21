@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-<title>Arena Shooter V11.2 (Core)</title>
+<title>Arena Shooter V11.2a (Core Fixed)</title>
 <style>
   html,body{height:100%;margin:0;background:#0c0c0f;touch-action:none}
   canvas{display:block}
@@ -17,6 +17,7 @@
   .joystick{position:absolute;bottom:60px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.06);touch-action:none;pointer-events:auto}
   #moveStick{left:40px}
   #shootStick{right:40px}
+  .knob{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,0.16);pointer-events:none}
 </style>
 </head>
 <body>
@@ -42,18 +43,31 @@
   </div>
 </div>
 
-<div class="joystick" id="moveStick"></div>
-<div class="joystick" id="shootStick"></div>
+<div class="joystick" id="moveStick"><div class="knob" id="moveKnob"></div></div>
+<div class="joystick" id="shootStick"><div class="knob" id="shootKnob"></div></div>
 
 <script>
-const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
-resize();window.addEventListener("resize",resize);
-function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+/* ================= CORE FIXED =================
+   - Full 360° aim from right stick + mouse fallback
+   - Solid obstacle collisions (player, enemies, bullets)
+   - Enemies reliably damage on contact (no phasing)
+================================================= */
 
-let running=false,score=0;
-let player={x:canvas.width/2,y:canvas.height/2,r:18,hp:100,speed:3,fireCooldown:0};
-let bullets=[],enemies=[],obstacles=[];
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+addEventListener("resize", resize); resize();
 
+let running=false, score=0;
+
+const player = { x: canvas.width/2, y: canvas.height/2, r: 18, hp: 100, speed: 3.0, fireCooldown: 0 };
+let bullets=[], enemies=[], obstacles=[];
+
+/* ---------- UI ---------- */
+const hpFill = document.getElementById("health-fill");
+const scoreEl = document.getElementById("score");
+
+/* ---------- Start ---------- */
 document.getElementById("startBtn").onclick=()=>{
   document.getElementById("menu").style.display="none";
   running=true;
@@ -62,93 +76,199 @@ document.getElementById("startBtn").onclick=()=>{
   requestAnimationFrame(loop);
 };
 
+/* ---------- Level ---------- */
 function buildLevel(){
-  obstacles=[];
-  for(let i=0;i<8;i++){
-    obstacles.push({x:Math.random()*canvas.width*0.8+50,y:Math.random()*canvas.height*0.8+50,w:80,h:80});
+  obstacles.length=0;
+  // scatter some solids
+  for(let i=0;i<12;i++){
+    const w = 70 + Math.random()*120, h = 60 + Math.random()*110;
+    const x = Math.random()*(canvas.width - w - 100) + 50;
+    const y = Math.random()*(canvas.height - h - 100) + 50;
+    obstacles.push({x,y,w,h});
   }
 }
+
 function spawnEnemies(){
-  enemies=[];
-  for(let i=0;i<6;i++){
-    enemies.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:14,hp:30});
+  enemies.length=0;
+  for(let i=0;i<8;i++){
+    const side=Math.floor(Math.random()*4);
+    let x=0,y=0;
+    if (side===0){x=10;y=Math.random()*canvas.height;}
+    else if (side===1){x=canvas.width-10;y=Math.random()*canvas.height;}
+    else if (side===2){x=Math.random()*canvas.width;y=10;}
+    else {x=Math.random()*canvas.width;y=canvas.height-10;}
+    enemies.push({x,y,r:14,hp:28,spd:1.4,hitTimer:0});
   }
 }
 
-/* ----------- Joystick logic ----------- */
-let moveVec={x:0,y:0},aimVec={x:0,y:0};
-function bindStick(el,vec){
-  let dragging=false,cx,cy;
-  const center=()=>{const r=el.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;};
-  center();window.addEventListener("resize",center);
-  el.addEventListener("touchstart",e=>{dragging=true;e.preventDefault();},{passive:false});
-  el.addEventListener("touchmove",e=>{
-    if(!dragging)return;
-    const t=e.touches[0];let dx=t.clientX-cx,dy=t.clientY-cy;
-    let d=Math.hypot(dx,dy),max=45;if(d>max){dx=dx/d*max;dy=dy/d*max;}
-    vec.x=dx/max;vec.y=dy/max;e.preventDefault();
-  },{passive:false});
-  el.addEventListener("touchend",()=>{dragging=false;vec.x=0;vec.y=0;});
+/* ---------- Collisions ---------- */
+function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
+  const closestX = Math.max(rx, Math.min(cx, rx+rw));
+  const closestY = Math.max(ry, Math.min(cy, ry+rh));
+  const dx = cx - closestX, dy = cy - closestY;
+  return (dx*dx + dy*dy) < cr*cr;
 }
-bindStick(document.getElementById("moveStick"),moveVec);
-bindStick(document.getElementById("shootStick"),aimVec);
 
-/* ----------- Loop ----------- */
-function loop(ts){
-  if(!running)return;
-  update();draw();
+// slide along solids (attempt X then Y)
+function attemptMove(entity, nextX, nextY, radius){
+  let canX = true, canY = true;
+  for (const o of obstacles){
+    if (circleRectCollision(nextX, entity.y, radius, o.x, o.y, o.w, o.h)) canX = false;
+    if (circleRectCollision(entity.x, nextY, radius, o.x, o.y, o.w, o.h)) canY = false;
+    if (!canX && !canY) break;
+  }
+  if (canX) entity.x = nextX;
+  if (canY) entity.y = nextY;
+  // keep on screen
+  entity.x = Math.max(radius, Math.min(canvas.width - radius, entity.x));
+  entity.y = Math.max(radius, Math.min(canvas.height - radius, entity.y));
+}
+
+/* ---------- Joysticks ---------- */
+const moveStick = document.getElementById("moveStick");
+const shootStick = document.getElementById("shootStick");
+const moveKnob = document.getElementById("moveKnob");
+const shootKnob = document.getElementById("shootKnob");
+
+let moveVec={x:0,y:0}, aimVec={x:0,y:0};
+
+function bindStick(stick, knob, vec){
+  let dragging=false, cx=0, cy=0;
+  function recenter(){ const r=stick.getBoundingClientRect(); cx=r.left+r.width/2; cy=r.top+r.height/2; }
+  recenter(); addEventListener("resize", recenter);
+
+  stick.addEventListener("touchstart", e=>{ dragging=true; e.preventDefault(); }, {passive:false});
+  stick.addEventListener("touchmove", e=>{
+    if(!dragging) return;
+    const t=e.touches[0];
+    let dx=t.clientX-cx, dy=t.clientY-cy;
+    const max=50, d=Math.hypot(dx,dy)||1;
+    const clamped = (d>max) ? {dx:dx/d*max, dy:dy/d*max} : {dx,dy};
+    vec.x = clamped.dx / max; vec.y = clamped.dy / max;
+    knob.style.transform = `translate(calc(-50% + ${clamped.dx}px), calc(-50% + ${clamped.dy}px))`;
+    e.preventDefault();
+  }, {passive:false});
+  stick.addEventListener("touchend", ()=>{
+    dragging=false; vec.x=0; vec.y=0; knob.style.transform = `translate(-50%,-50%)`;
+  });
+}
+bindStick(moveStick, moveKnob, moveVec);
+bindStick(shootStick, shootKnob, aimVec);
+
+// Mouse fallback: left half move, right half aim (drag anywhere)
+let mL=false,mR=false;
+canvas.addEventListener("mousedown",e=>{ if(e.clientX<innerWidth*0.5) mL=true; else mR=true; });
+addEventListener("mouseup",()=>{ mL=mR=false; moveVec.x=moveVec.y=0; aimVec.x=aimVec.y=0; });
+canvas.addEventListener("mousemove",e=>{
+  if(mL){
+    const baseX=innerWidth*0.25, baseY=innerHeight-120;
+    let dx=e.clientX-baseX, dy=e.clientY-baseY; const max=80, d=Math.hypot(dx,dy)||1;
+    if(d>max){ dx=dx/d*max; dy=dy/d*max; }
+    moveVec.x=dx/max; moveVec.y=dy/max;
+  }
+  if(mR){
+    const baseX=innerWidth*0.75, baseY=innerHeight-120;
+    let dx=e.clientX-baseX, dy=e.clientY-baseY; const max=80, d=Math.hypot(dx,dy)||1;
+    if(d>max){ dx=dx/d*max; dy=dy/d*max; }
+    aimVec.x=dx/max; aimVec.y=dy/max;
+  }
+});
+
+/* ---------- Loop ---------- */
+function loop(){
+  if(!running) return;
+  update();
+  draw();
   requestAnimationFrame(loop);
 }
 
 function update(){
-  // move player
-  player.x+=moveVec.x*player.speed;
-  player.y+=moveVec.y*player.speed;
-  // fire
-  player.fireCooldown-=16;
-  if((aimVec.x||aimVec.y)&&player.fireCooldown<=0){
-    let a=Math.atan2(aimVec.y,aimVec.x);
-    bullets.push({x:player.x,y:player.y,vx:Math.cos(a)*6,vy:Math.sin(a)*6,r:4});
-    player.fireCooldown=300;
+  // move player with obstacle sliding
+  const lmag = Math.hypot(moveVec.x, moveVec.y);
+  if (lmag>0.05){
+    const nx = player.x + (moveVec.x/lmag) * player.speed;
+    const ny = player.y + (moveVec.y/lmag) * player.speed;
+    attemptMove(player, nx, ny, player.r);
   }
-  // update bullets
-  bullets=bullets.filter(b=>{
-    b.x+=b.vx;b.y+=b.vy;
-    // obstacle collision
-    for(const o of obstacles){if(b.x>o.x&&b.x<o.x+o.w&&b.y>o.y&&b.y<o.y+o.h)return false;}
-    // enemy hit
-    for(const e of enemies){if(Math.hypot(b.x-e.x,b.y-e.y)<e.r+b.r){e.hp-=10;score+=5;return false;}}
-    return b.x>0&&b.x<canvas.width&&b.y>0&&b.y<canvas.height;
+
+  // shoot in any direction (right stick)
+  player.fireCooldown = Math.max(0, player.fireCooldown-16);
+  const rmag = Math.hypot(aimVec.x, aimVec.y);
+  if (rmag>0.1 && player.fireCooldown===0){
+    const a = Math.atan2(aimVec.y, aimVec.x);
+    const spd = 6.0; // slowed for fair dodging
+    bullets.push({x: player.x + Math.cos(a)*player.r, y: player.y + Math.sin(a)*player.r, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd, r:4, dmg:10});
+    player.fireCooldown = 300; // 300ms
+  }
+
+  // bullets (stop on solids; hit enemies)
+  bullets = bullets.filter(b=>{
+    const nx = b.x + b.vx, ny = b.y + b.vy;
+    for (const o of obstacles){ if (nx>o.x && nx<o.x+o.w && ny>o.y && ny<o.y+o.h) return false; }
+    for (const e of enemies){
+      const d = Math.hypot(e.x - nx, e.y - ny);
+      if (d < e.r + b.r){
+        e.hp -= b.dmg;
+        return false;
+      }
+    }
+    b.x = nx; b.y = ny;
+    return (b.x>-20 && b.x<canvas.width+20 && b.y>-20 && b.y<canvas.height+20);
   });
-  enemies=enemies.filter(e=>e.hp>0);
-  // enemies chase
-  for(const e of enemies){
-    let dx=player.x-e.x,dy=player.y-e.y,d=Math.hypot(dx,dy);
-    e.x+=dx/d*1.2;e.y+=dy/d*1.2;
-    if(d<player.r+e.r){player.hp-=0.2;}
+  enemies = enemies.filter(e=>e.hp>0);
+
+  // enemies move with obstacle sliding + damage on contact
+  for (const e of enemies){
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const d = Math.hypot(dx,dy)||1;
+    const speed = e.spd; // slowed globally
+    const nx = e.x + dx/d * speed;
+    const ny = e.y + dy/d * speed;
+    attemptMove(e, nx, ny, e.r);
+
+    // contact damage (with small cooldown per enemy)
+    e.hitTimer = Math.max(0, e.hitTimer-16);
+    if (Math.hypot(player.x - e.x, player.y - e.y) < player.r + e.r){
+      if (e.hitTimer===0){
+        player.hp -= 6; // chunk on touch
+        e.hitTimer = 350; // ms
+      }
+    }
   }
-  if(player.hp<=0){endGame();}
+
+  // death
+  if (player.hp<=0){ endGame(); return; }
+
+  // UI
+  hpFill.style.width = Math.max(0, player.hp) + "%";
+  scoreEl.textContent = score;
 }
 
 function draw(){
-  ctx.fillStyle="#0c0c0f";ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#0c0c0f"; ctx.fillRect(0,0,canvas.width,canvas.height);
+
   // obstacles
-  ctx.fillStyle="#555";for(const o of obstacles){ctx.fillRect(o.x,o.y,o.w,o.h);}
+  ctx.fillStyle="#575757";
+  for (const o of obstacles){ ctx.fillRect(o.x, o.y, o.w, o.h); }
+
   // bullets
-  ctx.fillStyle="yellow";for(const b of bullets){ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle="#ffd447";
+  for (const b of bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill(); }
+
   // enemies
-  ctx.fillStyle="red";for(const e of enemies){ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle="#ff6b6b";
+  for (const e of enemies){ ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill(); }
+
   // player
-  ctx.fillStyle="blue";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
-  // UI
-  document.getElementById("health-fill").style.width=Math.max(0,player.hp)+"%";
-  document.getElementById("score").textContent=score;
+  ctx.fillStyle="#4da6ff";
+  ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,Math.PI*2); ctx.fill();
 }
 
 function endGame(){
   running=false;
-  document.getElementById("gameover").style.display="flex";
-  document.getElementById("finalScore").textContent="Score: "+score;
+  const go = document.getElementById("gameover");
+  document.getElementById("finalScore").textContent = "Score: " + score;
+  go.style.display="flex";
 }
 </script>
 </body>
